@@ -5,19 +5,18 @@ const Store = require('electron-store')
 const fetch = require('node-fetch')
 const path = require('path')
 
-// Catch unhandled errors and promise rejections
+// Handle unhandled errors
 unhandled()
 
 const store = new Store({ encryptionKey: 'encryption-key-here' })
-const accountId = '1fddcec8-8dd3-4d8d-9b16-215cac0f9b52'
-const productId = '858e0235-3237-46e4-a86c-ef01ae0b2c21'
+const accountId = '17203fc8-25f0-40ea-abc3-e4037a3cc3f5'
+const productId = '7a205a04-485b-4cf9-af8b-b0093f59a248'
 const isDev = process.env.NODE_ENV === 'development'
 
 store.set('app.version', app.getVersion())
 
-// Validate a license key for the product. Returns the validation result and a license object.
 async function validateLicenseKey(key) {
-  const validation = await fetch(`https://api.keygen.sh/v1/accounts/${accountId}/licenses/actions/validate-key`, {
+  const response = await fetch(`https://api.keygen.sh/v1/accounts/${accountId}/licenses/actions/validate-key`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -27,23 +26,18 @@ async function validateLicenseKey(key) {
       meta: {
         scope: { product: productId },
         key,
-      }
+      },
     }),
   })
-  const { meta, data, errors } = await validation.json()
+
+  const { meta, data, errors } = await response.json()
   if (errors) {
-    return { status: validation.status, errors }
+    return { status: response.status, errors }
   }
 
-  return {
-    status: validation.status,
-    meta,
-    data,
-  }
+  return { status: response.status, meta, data }
 }
 
-// Wrap the main application window in a license gate. The main window will
-// only be launched when a valid license is provided.
 async function gateAppLaunchWithLicense(appLauncher) {
   const gateWindow = new BrowserWindow({
     resizable: false,
@@ -57,114 +51,77 @@ async function gateAppLaunchWithLicense(appLauncher) {
   })
 
   gateWindow.loadFile('gate.html')
-
-  if (isDev) {
-    gateWindow.webContents.openDevTools({ mode: 'detach' })
-  }
+  if (isDev) gateWindow.webContents.openDevTools({ mode: 'detach' })
 
   ipcMain.on('GATE_SUBMIT', async (_event, { key }) => {
-    // Validate the license key
     const res = await validateLicenseKey(key)
+
     if (res.errors) {
       const [{ code }] = res.errors
       const choice = await dialog.showMessageBox(gateWindow, {
         type: 'error',
-        title: 'Your license is invalid',
-        message: 'The license key you entered does not exist for this product. Would you like to buy a license?',
+        title: 'Invalid License',
+        message: 'The license key you entered is invalid. Would you like to try again or buy one?',
         detail: `Error code: ${code ?? res.status}`,
-        buttons: [
-          'Continue evaluation',
-          'Try again',
-          'Buy a license',
-        ],
+        buttons: ['Continue evaluation', 'Try again', 'Buy a license'],
       })
 
       switch (choice.response) {
         case 0:
-          // Set to evaluation mode
           store.set('app.mode', 'EVALUATION')
           store.delete('license')
-
-          // Close the license gate window
           gateWindow.close()
-
-          // Launch our main app
           appLauncher(key)
-
           break
         case 1:
-          // noop (dismiss and try again)
-
           break
         case 2:
-          // TODO(ezekg) Open a link to purchase page
           shell.openExternal('https://keygen.sh/for-electron-apps/')
-
           break
       }
 
       return
     }
 
-    // Branch on the license's validation code
     const { valid, code } = res.meta
+    const license = res.data
 
-    switch (code) {
-      // License is valid. All is well.
-      case 'VALID':
-      // For expired licenses, we still want to allow the app to be used, but automatic
-      // updates will not be allowed.
-      case 'EXPIRED': {
-        const license = res.data
+    if (['VALID', 'EXPIRED'].includes(code)) {
+      store.set('license', {
+        key: license.attributes.key,
+        expiry: license.attributes.expiry,
+        status: code,
+        lastValidation: Date.now(),
+      })
+      store.set('app.mode', 'LICENSED')
 
-        store.set('license.expiry', license.attributes.expiry)
-        store.set('license.key', license.attributes.key)
-        store.set('license.status', code)
+      await dialog.showMessageBox(gateWindow, {
+        type: valid ? 'info' : 'warning',
+        title: 'License Accepted',
+        message: `License ID: ${license.id.slice(0, 8)} — ${code.toLowerCase()}`,
+        detail: valid ? 'Automatic updates are enabled.' : 'Automatic updates are disabled.',
+        buttons: ['Continue'],
+      })
 
-        store.set('app.mode', 'LICENSED')
+      gateWindow.close()
+      appLauncher(license.attributes.key)
+    } else {
+      store.set('app.mode', 'UNLICENSED')
+      store.delete('license')
 
-        await dialog.showMessageBox(gateWindow, {
-          type: valid ? 'info' : 'warning',
-          title: 'Thanks for your business!',
-          message: `Your license ID is ${res.data.id.substring(0, 8)}. It is ${code.toLowerCase()}.`,
-          detail: valid ? 'Automatic updates are enabled.' : 'Automatic updates are disabled.',
-          buttons: [
-            'Continue',
-          ],
-        })
+      await dialog.showMessageBox(gateWindow, {
+        type: 'error',
+        title: 'License Rejected',
+        message: 'Your license is no longer valid.',
+        detail: `Validation code: ${code}`,
+        buttons: ['Exit'],
+      })
 
-        // Close the license gate window
-        gateWindow.close()
-
-        // Launch our main app
-        appLauncher(key)
-
-        break
-      }
-      // All other validation codes, e.g. SUSPENDED, etc. are treated as invalid.
-      default: {
-        store.set('app.mode', 'UNLICENSED')
-        store.delete('license')
-
-        await dialog.showMessageBox(gateWindow, {
-          type: 'error',
-          title: 'Your license is invalid',
-          message: 'That license key is no longer valid.',
-          detail: `Validation code: ${code}`,
-          buttons: [
-            'Exit',
-          ],
-        })
-
-        app.exit(1)
-
-        break
-      }
+      app.exit(1)
     }
   })
 }
 
-// Launch the main application window and configure automatic updates.
 function launchAppWithLicenseKey(key) {
   const mainWindow = new BrowserWindow({
     width: 800,
@@ -178,18 +135,36 @@ function launchAppWithLicenseKey(key) {
   mainWindow.loadFile('index.html')
 
   if (!isDev) {
-    // Check for updates right away using license key authentication
     autoUpdater.addAuthHeader(`License ${key}`)
     autoUpdater.checkForUpdatesAndNotify()
-
-    // Check for updates periodically
-    setInterval(
-      autoUpdater.checkForUpdatesAndNotify,
-      1000 * 60 * 60 * 3, // 3 hours in ms
-    )
+    setInterval(autoUpdater.checkForUpdatesAndNotify, 1000 * 60 * 60 * 3) // every 3 hours
   }
 }
 
-app.whenReady().then(() => gateAppLaunchWithLicense(launchAppWithLicenseKey))
+app.whenReady().then(async () => {
+  const stored = store.get('license')
+  if (stored?.key) {
+    const lastChecked = stored.lastValidation || 0
+    const now = Date.now()
+
+    // Revalidate every 24 hours
+    if (now - lastChecked < 1000 * 60 * 60 * 24) {
+      launchAppWithLicenseKey(stored.key)
+      return
+    }
+
+    const res = await validateLicenseKey(stored.key)
+    if (res.meta && ['VALID', 'EXPIRED'].includes(res.meta.code)) {
+      store.set('license.lastValidation', now)
+      launchAppWithLicenseKey(stored.key)
+      return
+    } else {
+      store.delete('license')
+      store.set('app.mode', 'UNLICENSED')
+    }
+  }
+
+  gateAppLaunchWithLicense(launchAppWithLicenseKey)
+})
 
 app.on('window-all-closed', () => app.quit())
