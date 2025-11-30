@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EndoStat - Endoscopy Reporting System</title>
+    <link
+      href="../../../assests/font-awesome/css/font-awesome.min.css"
+      rel="stylesheet"
+    />
+    <link href="../css/main.css" rel="stylesheet" />
+  </head>
+  <body>
+    <!-- Navigation Header -->
+    <header class="app-header">
+      <div class="header-content">
+        <div class="app-brand">
+          <i class="fa fa-stethoscope brand-icon"></i>
+          <span class="brand-text">EndoStat</span>
+        </div>
+
+        <div class="user-menu">
+          <div class="user-info">
+            <i class="fa fa-user-circle user-icon"></i>
+            <span id="current-user" class="user-name">Loading...</span>
+            <i class="fa fa-chevron-down dropdown-arrow"></i>
+          </div>
+          <div class="dropdown-menu">
+            <a href="#" class="dropdown-item" data-view="user-management">
+              <i class="fa fa-users"></i>
+              <span>User Management</span>
+            </a>
+            <a href="#" class="dropdown-item" data-view="settings">
+              <i class="fa fa-cog"></i>
+              <span>Settings</span>
+            </a>
+            <div class="dropdown-divider"></div>
+            <a href="#" class="dropdown-item logout-item" id="logout-btn">
+              <i class="fa fa-sign-out"></i>
+              <span>Logout</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Quick Actions Toolbar -->
+    <div class="actions-toolbar">
+      <div class="toolbar-content">
+        <div class="action-buttons">
+          <button class="action-btn primary" data-action="new-visit">
+            <i class="fa fa-plus-circle"></i>
+            <span>New Visit</span>
+          </button>
+          <button class="action-btn secondary" data-action="new-patient">
+            <i class="fa fa-user-plus"></i>
+            <span>New Patient</span>
+          </button>
+          <button class="action-btn info" data-action="manage-examiners">
+            <i class="fa fa-stethoscope"></i>
+            <span>Examiners</span>
+          </button>
+          <button class="action-btn warning" data-action="manage-referrers">
+            <i class="fa fa-handshake-o"></i>
+            <span>Referrers</span>
+          </button>
+        </div>
+
+        <div class="status-indicators">
+          <div class="status-badge">
+            <i class="fa fa-database"></i>
+            <span id="patient-count">0</span> Patients
+          </div>
+          <div class="status-badge success">
+            <i class="fa fa-check-circle"></i>
+            Licensed
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Dashboard View -->
+      <div id="dashboard-view" class="view-container active">
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon primary">
+              <i class="fa fa-users"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">Total Patients</div>
+              <div class="stat-value" id="total-patients">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon success">
+              <i class="fa fa-calendar-check-o"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">Today's Visits</div>
+              <div class="stat-value" id="today-visits">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon info">
+              <i class="fa fa-stethoscope"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">Active Examiners</div>
+              <div class="stat-value" id="active-examiners">0</div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon warning">
+              <i class="fa fa-heartbeat"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">System Status</div>
+              <div class="stat-status">
+                <span class="status-badge success">Operational</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Patients Section -->
+        <div class="content-card">
+          <div class="card-header">
+            <div class="header-title">
+              <i class="fa fa-list-alt"></i>
+              <span>Recent Patients</span>
+            </div>
+            <button class="header-action" data-action="view-all-patients">
+              <i class="fa fa-table"></i>
+              <span>View All</span>
+            </button>
+          </div>
+
+          <div class="card-body">
+            <div class="table-container">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Patient ID</th>
+                    <th>Name</th>
+                    <th>Gender</th>
+                    <th>Age</th>
+                    <th>Phone</th>
+                    <th>Last Visit</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="patients-tbody">
+                  <!-- Patients will be loaded here -->
+                  <tr class="empty-row">
+                    <td colspan="7" class="empty-message">
+                      <i class="fa fa-users"></i>
+                      <span
+                        >No patients found. Add your first patient to get
+                        started.</span
+                      >
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- User Management View -->
+      <div id="user-management-view" class="view-container">
+        <div class="content-card">
+          <div class="card-header">
+            <div class="header-title">
+              <i class="fa fa-users"></i>
+              <span>User Management</span>
+            </div>
+            <button class="header-action success" data-action="add-user">
+              <i class="fa fa-user-plus"></i>
+              <span>Add User</span>
+            </button>
+          </div>
+
+          <div class="card-body">
+            <div class="table-container">
+              <table class="custom-table">
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Full Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="users-tbody">
+                  <!-- Users will be loaded here -->
+                  <tr class="empty-row">
+                    <td colspan="6" class="empty-message">
+                      <i class="fa fa-users"></i>
+                      <span>No users found.</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add more views as needed -->
+    </main>
+
+    <!-- Scripts -->
+    <script src="../js/main.js"></script>
+  </body>
+</html>

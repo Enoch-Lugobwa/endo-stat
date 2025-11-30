@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EndoStat - License Activation</title>
+    <link rel="stylesheet" href="../css/license-gate.css" />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="license-gate-container">
+      <div class="license-header">
+        <div class="logo">
+          <!--<i class="fas fa-stethoscope"></i>-->
+          <h1>ENDOSTAT</h1>
+        </div>
+        <p class="subtitle">Endoscopy Reporting System</p>
+      </div>
+
+      <div class="license-content">
+        <h2>Activate Your License</h2>
+        <p>Enter your license key to activate EndoStat</p>
+
+        <form id="license-form">
+          <div class="form-group">
+            <label class="form-label">License Key</label>
+            <input
+              type="text"
+              id="license-key"
+              class="form-control"
+              placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+              required
+              autocomplete="off"
+              spellcheck="false"
+              autofocus
+            />
+          </div>
+
+          <button
+            type="submit"
+            class="btn btn-primary btn-lg w-100"
+            id="activate-btn"
+          >
+            <i class="fas fa-key"></i> Activate License
+          </button>
+        </form>
+
+        <div class="license-help">
+          <p>
+            Don't have a license key?
+            <a href="#" id="purchase-link">Buy Now</a>
+          </p>
+          <p>
+            Lost your key?
+            <a href="#" id="contact-link">Contact support</a>
+          </p>
+        </div>
+      </div>
+      <div class="license-footer">
+        <p>
+          V <span id="app-version"></span> | ©
+          <span id="current-year"></span> Detale Technologies Limited
+        </p>
+      </div>
+    </div>
+    <script src="../js/license-gate.js"></script>
+  </body>
+</html>

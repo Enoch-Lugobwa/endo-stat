@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Endo-Stat - Login</title>
+    <link rel="stylesheet" href="../css/login.css" />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="login-container">
+      <div class="login-header">
+        <div class="logo">
+          <i class="fas fa-stethoscope"></i>
+          <h1>ENDOSTAT</h1>
+        </div>
+        <p class="subtitle">Endoscopy Reporting System</p>
+      </div>
+
+      <div class="login-form">
+        <h2>Sign In</h2>
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="username" class="form-label">Username</label>
+            <input
+              type="text"
+              id="username"
+              class="form-control"
+              placeholder="Enter your username"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password" class="form-label">Password</label>
+            <input
+              type="password"
+              id="password"
+              class="form-control"
+              placeholder="Enter your password"
+              required
+            />
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100" id="loginBtn">
+            <span>Sign In</span>
+            <div class="spinner hidden" id="loginSpinner"></div>
+          </button>
+        </form>
+
+        <div class="login-help">
+          <p><strong>Default credentials:</strong> admin / admin</p>
+        </div>
+      </div>
+
+      <div class="login-footer">
+        <div class="version" id="app-version">Version 1.0.0</div>
+        <div class="copyright">
+          © <span id="current-year"></span> Detale Technologies Limited
+        </div>
+      </div>
+    </div>
+
+    <script src="../js/login.js"></script>
+  </body>
+</html>
