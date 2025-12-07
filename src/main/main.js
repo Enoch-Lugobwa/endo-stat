@@ -333,6 +333,17 @@ class EndoStatApp {
       }
     });
 
+    ipcMain.handle("get-users", async () => {
+      try {
+        const users = this.database.getUsers();
+        console.log("📋 [Main Process] Returning users:", users.length);
+        return users;
+      } catch (error) {
+        console.error("❌ [Main Process] Error getting users:", error);
+        return [];
+      }
+    });
+
     ipcMain.handle("user-login", async (event, username, password) => {
       try {
         console.log("🚀 === LOGIN ATTEMPT STARTED ===");
@@ -443,6 +454,54 @@ class EndoStatApp {
 
     ipcMain.handle("store-delete", (event, key) => {
       store.delete(key);
+    });
+
+    ipcMain.handle("add-user", async (event, userData) => {
+      try {
+        console.log("📋 [Main Process] Adding user:", userData.username);
+        const result = this.database.addUser(userData);
+        console.log("✅ [Main Process] User added result:", result);
+        return result;
+      } catch (error) {
+        console.error("❌ [Main Process] Error adding user:", error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("update-user", async (event, userId, userData) => {
+      try {
+        console.log("📋 [Main Process] Updating user:", userId);
+        const result = this.database.updateUser(userId, userData);
+        console.log("✅ [Main Process] User updated result:", result);
+        return result;
+      } catch (error) {
+        console.error("❌ [Main Process] Error updating user:", error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("delete-user", async (event, userId) => {
+      try {
+        console.log("📋 [Main Process] Deleting user:", userId);
+        const result = this.database.deleteUser(userId);
+        console.log("✅ [Main Process] User deleted result:", result);
+        return result;
+      } catch (error) {
+        console.error("❌ [Main Process] Error deleting user:", error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("toggle-user-status", async (event, userId) => {
+      try {
+        console.log("📋 [Main Process] Toggling user status:", userId);
+        const result = this.database.toggleUserStatus(userId);
+        console.log("✅ [Main Process] User status toggled result:", result);
+        return result;
+      } catch (error) {
+        console.error("❌ [Main Process] Error toggling user status:", error);
+        return { success: false, error: error.message };
+      }
     });
 
     // License activation handler

@@ -8,6 +8,8 @@ class EndoStatApp {
     this.currentPage = 1;
     this.patientsPerPage = 10;
     this.searchTerm = "";
+    this.currentEditingUserId = null;
+    this.settings = this.loadSettings();
     this.init();
   }
 
@@ -123,10 +125,7 @@ class EndoStatApp {
     this.patients = this.allPatients?.slice(startIndex, endIndex) || [];
 
     // Update pagination controls
-    document.getElementById("showing-count").textContent = Math.min(
-      this.patients.length,
-      this.patientsPerPage
-    );
+    document.getElementById("showing-count").textContent = this.patients.length;
     document.getElementById("total-count").textContent = totalPatients;
     document.getElementById("current-page").textContent = this.currentPage;
 
@@ -135,6 +134,13 @@ class EndoStatApp {
 
     prevBtn.disabled = this.currentPage === 1;
     nextBtn.disabled = this.currentPage === totalPages || totalPages === 0;
+  }
+
+  updatePatientCount() {
+    const patientCountEl = document.getElementById("patient-count");
+    if (patientCountEl) {
+      patientCountEl.textContent = this.allPatients?.length || 0;
+    }
   }
 
   updateLicenseDisplay() {
@@ -363,24 +369,18 @@ class EndoStatApp {
           <td><small>${this.formatDate(user.created_at)}</small></td>
           <td>
             <div class="table-actions">
-              <button class="btn-icon warning" onclick="app.editUser(${
+              <button class="btn-icon warning" onclick="app.editUserModal(${
                 user.id
               })" title="Edit User">
                 <i class="fa fa-edit"></i>
               </button>
-              ${
-                user.username !== "admin"
-                  ? `
               <button class="btn-icon ${
                 user.is_active ? "danger" : "success"
               }" onclick="app.toggleUserStatus(${user.id}, ${
-                      user.is_active
-                    })" title="${user.is_active ? "Deactivate" : "Activate"}">
+          user.is_active
+        })" title="${user.is_active ? "Deactivate" : "Activate"}">
                 <i class="fa ${user.is_active ? "fa-ban" : "fa-check"}"></i>
               </button>
-              `
-                  : ""
-              }
             </div>
           </td>
         </tr>
@@ -507,14 +507,80 @@ class EndoStatApp {
 
     // Modal close buttons
     document
-      .querySelectorAll(
-        ".modal-close, [data-action='close-update-modal'], [data-action='cancel-update']"
-      )
+      .querySelectorAll(".modal-close, [data-action^='close-']")
       .forEach((btn) => {
-        btn.addEventListener("click", () => {
-          this.closeUpdateModal();
+        btn.addEventListener("click", (e) => {
+          const action = e.target.getAttribute("data-action");
+          const modalId = action.replace("close-", "").replace("-modal", "");
+          this.closeModal(`${modalId}-modal`);
         });
       });
+
+    // Add User Modal
+    document.getElementById("save-new-user")?.addEventListener("click", () => {
+      this.saveNewUser();
+    });
+
+    // Edit User Modal
+    document
+      .getElementById("save-user-changes")
+      ?.addEventListener("click", () => {
+        this.saveUserChanges();
+      });
+
+    // Delete User
+    document
+      .getElementById("delete-user-btn")
+      ?.addEventListener("click", () => {
+        if (this.currentEditingUserId) {
+          this.showConfirmDeleteModal(this.currentEditingUserId);
+        }
+      });
+
+    // Confirm Delete
+    document
+      .getElementById("confirm-delete-btn")
+      ?.addEventListener("click", () => {
+        this.confirmDeleteUser();
+      });
+
+    // Cancel Delete
+    document
+      .querySelector("[data-action='cancel-delete']")
+      ?.addEventListener("click", () => {
+        this.closeModal("confirm-delete-modal");
+      });
+
+    // Toggle password change fields
+    document
+      .getElementById("toggle-password-change")
+      ?.addEventListener("click", () => {
+        this.togglePasswordChangeFields();
+      });
+
+    // Settings modal
+    const settingsModalBtn = document.querySelector("[data-view='settings']");
+    if (settingsModalBtn) {
+      settingsModalBtn.addEventListener("click", () => {
+        this.showSettingsModal();
+      });
+    }
+  }
+
+  togglePasswordChangeFields() {
+    const fields = document.getElementById("password-change-fields");
+    const toggleBtn = document.getElementById("toggle-password-change");
+
+    if (fields.classList.contains("hidden")) {
+      fields.classList.remove("hidden");
+      toggleBtn.textContent = "Cancel Password Change";
+    } else {
+      fields.classList.add("hidden");
+      toggleBtn.textContent = "Change Password";
+      // Clear password fields
+      document.getElementById("edit-password").value = "";
+      document.getElementById("edit-confirm-password").value = "";
+    }
   }
 
   setupUpdateListeners() {
@@ -591,7 +657,7 @@ class EndoStatApp {
   }
 
   showUpdateReady(info) {
-    this.closeUpdateModal();
+    this.closeModal("update-progress-modal");
     this.showNotification(
       `Update ${info.version} downloaded and ready to install!`,
       "success",
@@ -599,8 +665,8 @@ class EndoStatApp {
     );
   }
 
-  closeUpdateModal() {
-    const modal = document.getElementById("update-progress-modal");
+  closeModal(modalId) {
+    const modal = document.getElementById(modalId);
     if (modal) {
       modal.classList.remove("active");
     }
@@ -618,8 +684,6 @@ class EndoStatApp {
 
       if (viewName === "user-management") {
         this.loadUsers();
-      } else if (viewName === "settings") {
-        this.loadSettings();
       }
     } else {
       console.warn(`Target view not found: ${viewName}-view`);
@@ -659,21 +723,23 @@ class EndoStatApp {
         break;
       default:
         console.warn("Unknown action:", action);
-        this.showNotification(`Action '${action}' not implemented yet`, "info");
+        // Don't show notification for close actions to avoid spam
+        if (!action.startsWith("close-")) {
+          this.showNotification(
+            `Action '${action}' not implemented yet`,
+            "info"
+          );
+        }
     }
   }
 
   async logout() {
     try {
       console.log("Logging out...");
-
-      // 1. Clear the stored session
       const response = await window.electronAPI.userLogout();
 
       if (response.success) {
         console.log("Session cleared, redirecting to login...");
-
-        // 2. Tell the main process to show the login window
         window.electronAPI.send("logout-successful");
       } else {
         console.error("Logout failed:", response.error);
@@ -695,9 +761,8 @@ class EndoStatApp {
 
   async loadUsers() {
     try {
-      const users = await window.electronAPI.dbQuery(
-        "SELECT * FROM users ORDER BY created_at DESC"
-      );
+      // Use the proper IPC handler instead of direct SQL
+      const users = await window.electronAPI.getUsers();
       console.log("Loaded users:", users?.length || 0);
       if (users) {
         this.users = users;
@@ -706,6 +771,290 @@ class EndoStatApp {
     } catch (error) {
       console.error("Error loading users:", error);
       this.showNotification("Error loading users", "error");
+    }
+  }
+
+  showAddUserModal() {
+    console.log("Showing add user modal");
+    const modal = document.getElementById("add-user-modal");
+    const form = document.getElementById("add-user-form");
+
+    if (modal && form) {
+      form.reset();
+      modal.classList.add("active");
+
+      // Set default values
+      document.getElementById("new-status").value = "1";
+      document.getElementById("new-role").value = "doctor";
+
+      // Focus first field
+      setTimeout(() => {
+        document.getElementById("new-username").focus();
+      }, 100);
+    }
+  }
+
+  editUserModal(userId) {
+    console.log("Showing edit user modal for user:", userId);
+    const modal = document.getElementById("edit-user-modal");
+    const form = document.getElementById("edit-user-form");
+
+    if (!modal || !form) return;
+
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) {
+      this.showNotification("User not found", "error");
+      return;
+    }
+
+    this.currentEditingUserId = userId;
+
+    // Populate form fields
+    document.getElementById("edit-user-id").value = user.id;
+    document.getElementById("edit-username").value = user.username;
+    document.getElementById("edit-fullname").value = user.full_name;
+    document.getElementById("edit-email").value = user.email || "";
+    document.getElementById("edit-role").value = user.role || "doctor";
+    document.getElementById("edit-status").value = user.is_active ? "1" : "0";
+    document.getElementById("edit-notes").value = user.notes || "";
+
+    // Set user statistics
+    document.getElementById("user-created").textContent = this.formatDate(
+      user.created_at
+    );
+    document.getElementById("user-last-login").textContent = user.last_login
+      ? this.formatDate(user.last_login)
+      : "Never";
+    document.getElementById("user-total-logins").textContent =
+      user.login_count || "0";
+
+    // Hide password fields initially
+    document.getElementById("password-change-fields").classList.add("hidden");
+    document.getElementById("toggle-password-change").textContent =
+      "Change Password";
+
+    // Clear password fields
+    document.getElementById("edit-password").value = "";
+    document.getElementById("edit-confirm-password").value = "";
+
+    modal.classList.add("active");
+
+    // Focus first editable field
+    setTimeout(() => {
+      document.getElementById("edit-fullname").focus();
+    }, 100);
+  }
+
+  async saveNewUser() {
+    try {
+      const username = document.getElementById("new-username").value.trim();
+      const fullname = document.getElementById("new-fullname").value.trim();
+      const email = document.getElementById("new-email").value.trim();
+      const password = document.getElementById("new-password").value;
+      const confirmPassword = document.getElementById("confirm-password").value;
+      const role = document.getElementById("new-role").value;
+      const status = document.getElementById("new-status").value === "1";
+      const notes = document.getElementById("new-notes").value.trim();
+
+      // Validation
+      if (!username || !fullname || !password || !role) {
+        this.showNotification("Please fill in all required fields", "error");
+        return;
+      }
+
+      if (username.length < 3 || username.length > 20) {
+        this.showNotification("Username must be 3-20 characters", "error");
+        return;
+      }
+
+      if (password.length < 6) {
+        this.showNotification(
+          "Password must be at least 6 characters",
+          "error"
+        );
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        this.showNotification("Passwords do not match", "error");
+        return;
+      }
+
+      // Check if username already exists
+      const existingUser = this.users.find(
+        (u) => u.username.toLowerCase() === username.toLowerCase()
+      );
+      if (existingUser) {
+        this.showNotification("Username already exists", "error");
+        return;
+      }
+
+      // Use the proper IPC handler for adding users
+      const result = await window.electronAPI.addUser({
+        username: username,
+        full_name: fullname,
+        email: email,
+        password: password, // Password will be hashed in the main process
+        role: role,
+        is_active: status,
+        notes: notes,
+      });
+
+      if (result && result.success) {
+        this.showNotification("User added successfully", "success");
+        this.closeModal("add-user-modal");
+        await this.loadUsers();
+      } else {
+        throw new Error(result.error || "Failed to add user");
+      }
+    } catch (error) {
+      console.error("Error adding user:", error);
+      this.showNotification("Error adding user: " + error.message, "error");
+    }
+  }
+
+  async saveUserChanges() {
+    try {
+      const userId = this.currentEditingUserId;
+      const fullname = document.getElementById("edit-fullname").value.trim();
+      const email = document.getElementById("edit-email").value.trim();
+      const role = document.getElementById("edit-role").value;
+      const status = document.getElementById("edit-status").value === "1";
+      const notes = document.getElementById("edit-notes").value.trim();
+      const password = document.getElementById("edit-password").value;
+      const confirmPassword = document.getElementById(
+        "edit-confirm-password"
+      ).value;
+
+      // Validation
+      if (!fullname || !role) {
+        this.showNotification("Please fill in all required fields", "error");
+        return;
+      }
+
+      if (password) {
+        if (password.length < 6) {
+          this.showNotification(
+            "Password must be at least 6 characters",
+            "error"
+          );
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          this.showNotification("Passwords do not match", "error");
+          return;
+        }
+      }
+
+      // Prepare user data for update
+      const userData = {
+        full_name: fullname,
+        email: email,
+        role: role,
+        is_active: status,
+        notes: notes,
+      };
+
+      // Add password only if provided
+      if (password && password.trim() !== "") {
+        userData.password = password;
+      }
+
+      // Use the proper IPC handler for updating users
+      const result = await window.electronAPI.updateUser(userId, userData);
+
+      if (result && result.success) {
+        this.showNotification("User updated successfully", "success");
+        this.closeModal("edit-user-modal");
+        await this.loadUsers();
+      } else {
+        this.showNotification(result.error || "No changes were made", "info");
+      }
+    } catch (error) {
+      console.error("Error updating user:", error);
+      this.showNotification("Error updating user: " + error.message, "error");
+    }
+  }
+
+  showConfirmDeleteModal(userId) {
+    const user = this.users.find((u) => u.id === userId);
+    if (!user) {
+      this.showNotification("User not found", "error");
+      return;
+    }
+
+    // Don't allow deleting admin user
+    if (user.username === "admin") {
+      this.showNotification("Cannot delete the admin user", "error");
+      return;
+    }
+
+    document.getElementById(
+      "delete-user-name"
+    ).textContent = `User: ${user.username} (${user.full_name})`;
+    document.getElementById("confirm-delete-modal").classList.add("active");
+  }
+
+  async confirmDeleteUser() {
+    try {
+      const userId = this.currentEditingUserId;
+
+      // Use the proper IPC handler for deleting users
+      const result = await window.electronAPI.deleteUser(userId);
+
+      if (result && result.success) {
+        this.showNotification("User deleted successfully", "success");
+        this.closeModal("confirm-delete-modal");
+        this.closeModal("edit-user-modal");
+        await this.loadUsers();
+      } else {
+        this.showNotification(result.error || "Failed to delete user", "error");
+      }
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      this.showNotification("Error deleting user: " + error.message, "error");
+    }
+  }
+
+  async toggleUserStatus(userId, currentStatus) {
+    try {
+      console.log(
+        `Toggling user ${userId} status from ${currentStatus} to ${!currentStatus}`
+      );
+
+      // Use the proper IPC handler for toggling user status
+      const result = await window.electronAPI.toggleUserStatus(userId);
+
+      console.log("Toggle user status result:", result);
+
+      if (result && result.success) {
+        await this.loadUsers();
+        this.showNotification(
+          `User ${result.newStatus ? "activated" : "deactivated"} successfully`,
+          "success"
+        );
+      } else {
+        this.showNotification(
+          result.error || "Error updating user status",
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Error toggling user status:", error);
+      this.showNotification(
+        "Error updating user status: " + error.message,
+        "error"
+      );
+    }
+  }
+
+  showSettingsModal() {
+    console.log("Showing settings modal");
+    const modal = document.getElementById("settings-modal");
+    if (modal) {
+      modal.classList.add("active");
+      this.loadSettingsContent();
     }
   }
 
@@ -783,11 +1132,6 @@ class EndoStatApp {
     this.showNotification("New visit feature coming soon", "info");
   }
 
-  showAddUserModal() {
-    console.log("Show add user modal");
-    this.showNotification("Add user feature coming soon", "info");
-  }
-
   viewPatient(patientId) {
     console.log("View patient:", patientId);
     this.showNotification(
@@ -810,42 +1154,6 @@ class EndoStatApp {
       `Edit patient ${patientId} - feature coming soon`,
       "info"
     );
-  }
-
-  editUser(userId) {
-    console.log("Edit user:", userId);
-    this.showNotification(`Edit user ${userId} - feature coming soon`, "info");
-  }
-
-  async toggleUserStatus(userId, currentStatus) {
-    try {
-      console.log(
-        `Toggling user ${userId} status from ${currentStatus} to ${!currentStatus}`
-      );
-
-      const result = await window.electronAPI.dbQuery(
-        "UPDATE users SET is_active = ? WHERE id = ?",
-        [!currentStatus, userId]
-      );
-
-      console.log("Toggle user status result:", result);
-
-      if (result && result.changes > 0) {
-        await this.loadUsers();
-        this.showNotification(
-          `User ${!currentStatus ? "activated" : "deactivated"} successfully`,
-          "success"
-        );
-      } else {
-        this.showNotification("Error updating user status", "error");
-      }
-    } catch (error) {
-      console.error("Error toggling user status:", error);
-      this.showNotification(
-        "Error updating user status: " + error.message,
-        "error"
-      );
-    }
   }
 
   showNotification(message, type = "info", duration = 3000) {

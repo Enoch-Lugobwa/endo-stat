@@ -12,6 +12,46 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("verify-user-credentials", username, password),
   loginSuccessful: () => ipcRenderer.send("login-successful"),
 
+  // User management - ADD THESE
+  getUsers: () => ipcRenderer.invoke("get-users"),
+  addUser: (userData) => ipcRenderer.invoke("add-user", userData),
+  updateUser: (userId, userData) =>
+    ipcRenderer.invoke("update-user", userId, userData),
+  deleteUser: (userId) => ipcRenderer.invoke("delete-user", userId),
+  toggleUserStatus: (userId) =>
+    ipcRenderer.invoke("toggle-user-status", userId),
+
+  // Patient management
+  addPatient: (patientData) => ipcRenderer.invoke("add-patient", patientData),
+  getPatients: (searchTerm) => ipcRenderer.invoke("get-patients", searchTerm),
+
+  // Settings functionality - ADD THESE
+  backupDatabase: () => ipcRenderer.invoke("backup-database"),
+  restoreDatabase: (backupPath) =>
+    ipcRenderer.invoke("restore-database", backupPath),
+  getDatabaseStats: () => ipcRenderer.invoke("get-database-stats"),
+  clearDatabase: () => ipcRenderer.invoke("clear-database"),
+  exportData: (format) => ipcRenderer.invoke("export-data", format),
+  importData: (filePath) => ipcRenderer.invoke("import-data", filePath),
+  getApplicationSettings: () => ipcRenderer.invoke("get-application-settings"),
+  saveApplicationSettings: (settings) =>
+    ipcRenderer.invoke("save-application-settings", settings),
+  resetSettings: () => ipcRenderer.invoke("reset-settings"),
+  getAdvancedSettings: () => ipcRenderer.invoke("get-advanced-settings"),
+  saveAdvancedSettings: (settings) =>
+    ipcRenderer.invoke("save-advanced-settings", settings),
+  validateLicense: (licenseKey) =>
+    ipcRenderer.invoke("validate-license", licenseKey),
+  activateLicense: (licenseKey) =>
+    ipcRenderer.invoke("activate-license", licenseKey),
+  deactivateLicense: () => ipcRenderer.invoke("deactivate-license"),
+  checkLicenseValidity: () => ipcRenderer.invoke("check-license-validity"),
+
+  // File dialogs
+  showOpenDialog: (options) => ipcRenderer.invoke("show-open-dialog", options),
+  showSaveDialog: (options) => ipcRenderer.invoke("show-save-dialog", options),
+  showMessageBox: (options) => ipcRenderer.invoke("show-message-box", options),
+
   // License management
   validateLicense: (licenseKey) =>
     ipcRenderer.invoke("validate-license", licenseKey),
