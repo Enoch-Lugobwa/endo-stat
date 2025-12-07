@@ -392,6 +392,20 @@ class EndoStatApp {
       return store.get("user.session") || null;
     });
 
+    ipcMain.on("logout-successful", async () => {
+      console.log("User logged out, switching to login window...");
+      try {
+        const mainWindow = this.windowManager.windows.get("main");
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.close();
+          this.windowManager.windows.delete("main");
+        }
+        await this.windowManager.createLoginWindow();
+      } catch (error) {
+        console.error("Failed to switch to login window:", error);
+      }
+    });
+
     // Handle successful login - switch to main window
     ipcMain.on("login-successful", async () => {
       console.log("Login successful, switching to main application...");

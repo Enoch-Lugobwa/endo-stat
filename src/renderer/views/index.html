@@ -16,29 +16,42 @@
       <div class="header-content">
         <div class="app-brand">
           <i class="fa fa-stethoscope brand-icon"></i>
-          <span class="brand-text">EndoStat</span>
+          <span class="brand-text">Endo-Stat</span>
         </div>
 
-        <div class="user-menu">
-          <div class="user-info">
-            <i class="fa fa-user-circle user-icon"></i>
-            <span id="current-user" class="user-name">Loading...</span>
-            <i class="fa fa-chevron-down dropdown-arrow"></i>
-          </div>
-          <div class="dropdown-menu">
-            <a href="#" class="dropdown-item" data-view="user-management">
-              <i class="fa fa-users"></i>
-              <span>User Management</span>
-            </a>
-            <a href="#" class="dropdown-item" data-view="settings">
-              <i class="fa fa-cog"></i>
-              <span>Settings</span>
-            </a>
-            <div class="dropdown-divider"></div>
-            <a href="#" class="dropdown-item logout-item" id="logout-btn">
-              <i class="fa fa-sign-out"></i>
-              <span>Logout</span>
-            </a>
+        <div class="header-controls">
+          <!-- Update Check Button -->
+          <button
+            class="update-btn"
+            id="check-updates-btn"
+            title="Check for updates"
+          >
+            <i class="fa fa-refresh"></i>
+            <span class="update-text">Check for Updates</span>
+          </button>
+
+          <!-- User Menu -->
+          <div class="user-menu">
+            <div class="user-info">
+              <i class="fa fa-user-circle user-icon"></i>
+              <span id="current-user" class="user-name">Loading...</span>
+              <i class="fa fa-chevron-down dropdown-arrow"></i>
+            </div>
+            <div class="dropdown-menu">
+              <a href="#" class="dropdown-item" data-view="user-management">
+                <i class="fa fa-users"></i>
+                <span>User Management</span>
+              </a>
+              <a href="#" class="dropdown-item" data-view="settings">
+                <i class="fa fa-cog"></i>
+                <span>Settings</span>
+              </a>
+              <div class="dropdown-divider"></div>
+              <a href="#" class="dropdown-item logout-item" id="logout-btn">
+                <i class="fa fa-sign-out"></i>
+                <span>Logout</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -56,24 +69,28 @@
             <i class="fa fa-user-plus"></i>
             <span>New Patient</span>
           </button>
-          <button class="action-btn info" data-action="manage-examiners">
-            <i class="fa fa-stethoscope"></i>
-            <span>Examiners</span>
+          <button class="action-btn info" data-action="quick-stats">
+            <i class="fa fa-chart-line"></i>
+            <span>Quick Stats</span>
           </button>
-          <button class="action-btn warning" data-action="manage-referrers">
-            <i class="fa fa-handshake-o"></i>
-            <span>Referrers</span>
+          <button class="action-btn warning" data-action="generate-report">
+            <i class="fa fa-file-pdf-o"></i>
+            <span>Generate Report</span>
           </button>
         </div>
 
         <div class="status-indicators">
-          <div class="status-badge">
+          <div class="status-badge patient-count">
             <i class="fa fa-database"></i>
             <span id="patient-count">0</span> Patients
           </div>
-          <div class="status-badge success">
+          <div class="status-badge license-status" id="license-status-badge">
             <i class="fa fa-check-circle"></i>
-            Licensed
+            <span id="license-status-text">Licensed</span>
+          </div>
+          <div class="status-badge system-status" id="system-status-badge">
+            <i class="fa fa-heartbeat"></i>
+            <span>Operational</span>
           </div>
         </div>
       </div>
@@ -83,91 +100,319 @@
     <main class="main-content">
       <!-- Dashboard View -->
       <div id="dashboard-view" class="view-container active">
-        <!-- Statistics Cards -->
+        <!-- Welcome Section -->
+        <div class="welcome-section">
+          <div class="welcome-content">
+            <h1 class="welcome-title">
+              <i class="fa fa-stethoscope"></i>
+              Welcome to Endo-Stat
+            </h1>
+            <p class="welcome-subtitle">
+              Advanced Endoscopy Reporting System
+              <span id="app-version">Loading version...</span>
+            </p>
+            <div class="quick-stats-row">
+              <div class="quick-stat">
+                <i class="fa fa-user-md"></i>
+                <div>
+                  <span class="quick-stat-label">Logged in as:</span>
+                  <span class="quick-stat-value" id="current-user-role"
+                    >Administrator</span
+                  >
+                </div>
+              </div>
+              <div class="quick-stat">
+                <i class="fa fa-calendar"></i>
+                <div>
+                  <span class="quick-stat-label">Today:</span>
+                  <span class="quick-stat-value" id="current-date"
+                    >Loading...</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="welcome-actions">
+            <button
+              class="welcome-action-btn primary"
+              data-action="new-patient"
+            >
+              <i class="fa fa-user-plus"></i>
+              <span>Add New Patient</span>
+            </button>
+            <button
+              class="welcome-action-btn secondary"
+              data-action="quick-tour"
+            >
+              <i class="fa fa-play-circle"></i>
+              <span>Quick Tour</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Statistics Grid -->
         <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-icon primary">
+          <div class="stat-card primary">
+            <div class="stat-icon">
               <i class="fa fa-users"></i>
             </div>
             <div class="stat-content">
               <div class="stat-label">Total Patients</div>
               <div class="stat-value" id="total-patients">0</div>
+              <div class="stat-trend">
+                <i class="fa fa-arrow-up"></i>
+                <span>+12 this month</span>
+              </div>
             </div>
+            <button class="stat-action" data-action="view-all-patients">
+              <i class="fa fa-arrow-right"></i>
+            </button>
           </div>
 
-          <div class="stat-card">
-            <div class="stat-icon success">
+          <div class="stat-card success">
+            <div class="stat-icon">
               <i class="fa fa-calendar-check-o"></i>
             </div>
             <div class="stat-content">
-              <div class="stat-label">Today's Visits</div>
+              <div class="stat-label">Today's Procedures</div>
               <div class="stat-value" id="today-visits">0</div>
+              <div class="stat-trend">
+                <i class="fa fa-calendar"></i>
+                <span id="todays-date">Today</span>
+              </div>
             </div>
+            <button class="stat-action" data-action="todays-schedule">
+              <i class="fa fa-clock-o"></i>
+            </button>
           </div>
 
-          <div class="stat-card">
-            <div class="stat-icon info">
+          <div class="stat-card info">
+            <div class="stat-icon">
               <i class="fa fa-stethoscope"></i>
             </div>
             <div class="stat-content">
               <div class="stat-label">Active Examiners</div>
-              <div class="stat-value" id="active-examiners">0</div>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon warning">
-              <i class="fa fa-heartbeat"></i>
-            </div>
-            <div class="stat-content">
-              <div class="stat-label">System Status</div>
-              <div class="stat-status">
-                <span class="status-badge success">Operational</span>
+              <div class="stat-value" id="active-examiners">1</div>
+              <div class="stat-trend">
+                <i class="fa fa-user-md"></i>
+                <span>You are online</span>
               </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Recent Patients Section -->
-        <div class="content-card">
-          <div class="card-header">
-            <div class="header-title">
-              <i class="fa fa-list-alt"></i>
-              <span>Recent Patients</span>
-            </div>
-            <button class="header-action" data-action="view-all-patients">
-              <i class="fa fa-table"></i>
-              <span>View All</span>
+            <button class="stat-action" data-action="manage-examiners">
+              <i class="fa fa-list"></i>
             </button>
           </div>
 
-          <div class="card-body">
-            <div class="table-container">
-              <table class="custom-table">
-                <thead>
-                  <tr>
-                    <th>Patient ID</th>
-                    <th>Name</th>
-                    <th>Gender</th>
-                    <th>Age</th>
-                    <th>Phone</th>
-                    <th>Last Visit</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="patients-tbody">
-                  <!-- Patients will be loaded here -->
-                  <tr class="empty-row">
-                    <td colspan="7" class="empty-message">
-                      <i class="fa fa-users"></i>
-                      <span
-                        >No patients found. Add your first patient to get
-                        started.</span
+          <div class="stat-card warning">
+            <div class="stat-icon">
+              <i class="fa fa-line-chart"></i>
+            </div>
+            <div class="stat-content">
+              <div class="stat-label">Monthly Growth</div>
+              <div class="stat-value" id="monthly-growth">+15%</div>
+              <div class="stat-trend">
+                <i class="fa fa-thumbs-up"></i>
+                <span>Positive trend</span>
+              </div>
+            </div>
+            <button class="stat-action" data-action="view-reports">
+              <i class="fa fa-bar-chart"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Recent Activity Section -->
+        <div class="dashboard-row">
+          <!-- Recent Patients Section -->
+          <div class="dashboard-column wide">
+            <div class="content-card">
+              <div class="card-header">
+                <div class="header-title">
+                  <i class="fa fa-list-alt"></i>
+                  <span>Recent Patients</span>
+                </div>
+                <div class="header-actions">
+                  <div class="search-box">
+                    <i class="fa fa-search"></i>
+                    <input
+                      type="text"
+                      id="patient-search"
+                      placeholder="Search patients..."
+                    />
+                  </div>
+                  <button class="header-action" data-action="view-all-patients">
+                    <i class="fa fa-table"></i>
+                    <span>View All</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="card-body">
+                <div class="table-container">
+                  <table class="custom-table">
+                    <thead>
+                      <tr>
+                        <th>Patient ID</th>
+                        <th>Full Name</th>
+                        <th>Gender</th>
+                        <th>Age</th>
+                        <th>Phone</th>
+                        <th>Last Visit</th>
+                        <th class="text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="patients-tbody">
+                      <!-- Patients will be loaded here -->
+                      <tr class="empty-row">
+                        <td colspan="7" class="empty-message">
+                          <i class="fa fa-users"></i>
+                          <span
+                            >No patients found. Add your first patient to get
+                            started.</span
+                          >
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="table-footer">
+                  <div class="pagination-info">
+                    Showing <span id="showing-count">0</span> of
+                    <span id="total-count">0</span> patients
+                  </div>
+                  <div class="pagination-controls">
+                    <button class="pagination-btn" disabled id="prev-page">
+                      <i class="fa fa-chevron-left"></i> Previous
+                    </button>
+                    <span class="page-indicator"
+                      >Page <span id="current-page">1</span></span
+                    >
+                    <button class="pagination-btn" id="next-page">
+                      Next <i class="fa fa-chevron-right"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Stats & System Info -->
+          <div class="dashboard-column narrow">
+            <!-- System Status Card -->
+            <div class="content-card">
+              <div class="card-header">
+                <div class="header-title">
+                  <i class="fa fa-heartbeat"></i>
+                  <span>System Status</span>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="system-status-list">
+                  <div class="status-item success">
+                    <i class="fa fa-check-circle"></i>
+                    <div>
+                      <span class="status-label">Database</span>
+                      <span class="status-value">Connected</span>
+                    </div>
+                  </div>
+                  <div class="status-item success">
+                    <i class="fa fa-check-circle"></i>
+                    <div>
+                      <span class="status-label">License</span>
+                      <span class="status-value" id="license-status-value"
+                        >Active</span
                       >
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+                    </div>
+                  </div>
+                  <div class="status-item success">
+                    <i class="fa fa-check-circle"></i>
+                    <div>
+                      <span class="status-label">Storage</span>
+                      <span class="status-value">85% Free</span>
+                    </div>
+                  </div>
+                  <div class="status-item info">
+                    <i class="fa fa-info-circle"></i>
+                    <div>
+                      <span class="status-label">Updates</span>
+                      <span class="status-value" id="update-status"
+                        >Checking...</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Actions Card -->
+            <div class="content-card">
+              <div class="card-header">
+                <div class="header-title">
+                  <i class="fa fa-bolt"></i>
+                  <span>Quick Actions</span>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="quick-actions-grid">
+                  <button class="quick-action-btn" data-action="new-visit">
+                    <i class="fa fa-plus-circle"></i>
+                    <span>New Visit</span>
+                  </button>
+                  <button class="quick-action-btn" data-action="quick-report">
+                    <i class="fa fa-file-text-o"></i>
+                    <span>Quick Report</span>
+                  </button>
+                  <button class="quick-action-btn" data-action="backup-data">
+                    <i class="fa fa-database"></i>
+                    <span>Backup Data</span>
+                  </button>
+                  <button
+                    class="quick-action-btn"
+                    data-action="check-updates"
+                    id="dashboard-update-btn"
+                  >
+                    <i class="fa fa-refresh"></i>
+                    <span>Check Updates</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Activity Feed Card -->
+            <div class="content-card">
+              <div class="card-header">
+                <div class="header-title">
+                  <i class="fa fa-history"></i>
+                  <span>Recent Activity</span>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="activity-feed">
+                  <div class="activity-item">
+                    <i class="fa fa-user-plus activity-icon success"></i>
+                    <div class="activity-content">
+                      <span class="activity-text">New patient added</span>
+                      <span class="activity-time">2 hours ago</span>
+                    </div>
+                  </div>
+                  <div class="activity-item">
+                    <i class="fa fa-sign-in activity-icon info"></i>
+                    <div class="activity-content">
+                      <span class="activity-text">You logged in</span>
+                      <span class="activity-time">Today, 09:00 AM</span>
+                    </div>
+                  </div>
+                  <div class="activity-item">
+                    <i class="fa fa-database activity-icon warning"></i>
+                    <div class="activity-content">
+                      <span class="activity-text"
+                        >Database backup completed</span
+                      >
+                      <span class="activity-time">Yesterday, 11:30 PM</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -175,6 +420,7 @@
 
       <!-- User Management View -->
       <div id="user-management-view" class="view-container">
+        <!-- User Management content remains the same -->
         <div class="content-card">
           <div class="card-header">
             <div class="header-title">
@@ -214,9 +460,643 @@
           </div>
         </div>
       </div>
-
-      <!-- Add more views as needed -->
     </main>
+
+    <!-- Update Progress Modal -->
+    <div class="modal-overlay" id="update-progress-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa fa-refresh"></i> Downloading Update</h3>
+          <button class="modal-close" data-action="close-update-modal">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="update-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" id="update-progress-fill"></div>
+            </div>
+            <div class="progress-info">
+              <span class="progress-percent" id="update-progress-percent"
+                >0%</span
+              >
+              <span class="progress-speed" id="update-progress-speed"
+                >0 KB/s</span
+              >
+            </div>
+            <div class="progress-details">
+              <div class="detail-item">
+                <span>Downloaded:</span>
+                <span id="update-downloaded">0 MB</span>
+              </div>
+              <div class="detail-item">
+                <span>Total:</span>
+                <span id="update-total">0 MB</span>
+              </div>
+              <div class="detail-item">
+                <span>Time remaining:</span>
+                <span id="update-time-remaining">Calculating...</span>
+              </div>
+            </div>
+          </div>
+          <p class="update-message">
+            Please wait while the update downloads...
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary" data-action="cancel-update">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div class="modal-overlay" id="add-user-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa fa-user-plus"></i> Add New User</h3>
+          <button class="modal-close" data-action="close-add-user-modal">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="add-user-form">
+            <div class="form-group">
+              <label for="new-username">Username *</label>
+              <input
+                type="text"
+                id="new-username"
+                required
+                placeholder="Enter username"
+              />
+              <small class="form-hint">Must be unique, 3-20 characters</small>
+            </div>
+
+            <div class="form-group">
+              <label for="new-fullname">Full Name *</label>
+              <input
+                type="text"
+                id="new-fullname"
+                required
+                placeholder="Enter full name"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="new-email">Email Address</label>
+              <input
+                type="email"
+                id="new-email"
+                placeholder="Enter email address"
+              />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="new-password">Password *</label>
+                <input
+                  type="password"
+                  id="new-password"
+                  required
+                  placeholder="Enter password"
+                />
+                <small class="form-hint">Minimum 6 characters</small>
+              </div>
+
+              <div class="form-group">
+                <label for="confirm-password">Confirm Password *</label>
+                <input
+                  type="password"
+                  id="confirm-password"
+                  required
+                  placeholder="Confirm password"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="new-role">Role *</label>
+                <select id="new-role" required>
+                  <option value="">Select role</option>
+                  <option value="admin">Administrator</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="receptionist">Receptionist</option>
+                  <option value="technician">Technician</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="new-status">Status</label>
+                <select id="new-status">
+                  <option value="1">Active</option>
+                  <option value="0">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="new-notes">Notes (Optional)</label>
+              <textarea
+                id="new-notes"
+                rows="3"
+                placeholder="Any additional notes about this user..."
+              ></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary" data-action="close-add-user-modal">
+            Cancel
+          </button>
+          <button class="btn primary" id="save-new-user">Add User</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit User Modal -->
+    <div class="modal-overlay" id="edit-user-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa fa-edit"></i> Edit User</h3>
+          <button class="modal-close" data-action="close-edit-user-modal">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="edit-user-form">
+            <input type="hidden" id="edit-user-id" />
+
+            <div class="form-group">
+              <label for="edit-username">Username *</label>
+              <input type="text" id="edit-username" required disabled />
+              <small class="form-hint">Username cannot be changed</small>
+            </div>
+
+            <div class="form-group">
+              <label for="edit-fullname">Full Name *</label>
+              <input type="text" id="edit-fullname" required />
+            </div>
+
+            <div class="form-group">
+              <label for="edit-email">Email Address</label>
+              <input type="email" id="edit-email" />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="edit-role">Role *</label>
+                <select id="edit-role" required>
+                  <option value="">Select role</option>
+                  <option value="admin">Administrator</option>
+                  <option value="doctor">Doctor</option>
+                  <option value="nurse">Nurse</option>
+                  <option value="receptionist">Receptionist</option>
+                  <option value="technician">Technician</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="edit-status">Status</label>
+                <select id="edit-status">
+                  <option value="1">Active</option>
+                  <option value="0">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="password-section">
+              <div class="section-header">
+                <h4><i class="fa fa-lock"></i> Change Password (Optional)</h4>
+                <button
+                  type="button"
+                  class="btn-link"
+                  id="toggle-password-change"
+                >
+                  Change Password
+                </button>
+              </div>
+
+              <div class="password-fields hidden" id="password-change-fields">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="edit-password">New Password</label>
+                    <input
+                      type="password"
+                      id="edit-password"
+                      placeholder="Leave blank to keep current"
+                    />
+                    <small class="form-hint">Minimum 6 characters</small>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="edit-confirm-password">Confirm Password</label>
+                    <input
+                      type="password"
+                      id="edit-confirm-password"
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="edit-notes">Notes (Optional)</label>
+              <textarea id="edit-notes" rows="3"></textarea>
+            </div>
+
+            <div class="user-stats">
+              <h4><i class="fa fa-chart-bar"></i> User Statistics</h4>
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <span class="stat-label">Created</span>
+                  <span class="stat-value" id="user-created">-</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Last Login</span>
+                  <span class="stat-value" id="user-last-login">Never</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Total Logins</span>
+                  <span class="stat-value" id="user-total-logins">0</span>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button class="btn danger" id="delete-user-btn">Delete User</button>
+          <div class="modal-actions">
+            <button class="btn secondary" data-action="close-edit-user-modal">
+              Cancel
+            </button>
+            <button class="btn primary" id="save-user-changes">
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Delete Modal -->
+    <div class="modal-overlay" id="confirm-delete-modal">
+      <div class="modal-content small">
+        <div class="modal-header">
+          <h3><i class="fa fa-exclamation-triangle"></i> Confirm Delete</h3>
+        </div>
+        <div class="modal-body">
+          <div class="warning-message">
+            <i class="fa fa-exclamation-circle"></i>
+            <div>
+              <p><strong>Are you sure you want to delete this user?</strong></p>
+              <p id="delete-user-name">User: Unknown</p>
+              <p class="text-muted">
+                This action cannot be undone. All user data will be permanently
+                removed.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary" data-action="cancel-delete">
+            Cancel
+          </button>
+          <button class="btn danger" id="confirm-delete-btn">
+            Delete User
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settings-modal">
+      <div class="modal-content wide">
+        <div class="modal-header">
+          <h3><i class="fa fa-cog"></i> Application Settings</h3>
+          <button class="modal-close" data-action="close-settings-modal">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="settings-tabs">
+            <div class="tab-nav">
+              <button class="tab-btn active" data-tab="general">General</button>
+              <button class="tab-btn" data-tab="database">Database</button>
+              <button class="tab-btn" data-tab="backup">Backup</button>
+              <button class="tab-btn" data-tab="license">License</button>
+              <button class="tab-btn" data-tab="advanced">Advanced</button>
+            </div>
+
+            <div class="tab-content">
+              <!-- General Settings -->
+              <div class="tab-pane active" id="general-tab">
+                <div class="settings-section">
+                  <h4><i class="fa fa-desktop"></i> Interface Settings</h4>
+                  <div class="form-group">
+                    <label for="theme">Theme</label>
+                    <select id="theme">
+                      <option value="light">Light</option>
+                      <option value="dark">Dark</option>
+                      <option value="auto">Auto (System)</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="language">Language</label>
+                    <select id="language">
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="animations" checked />
+                      <span>Enable animations</span>
+                    </label>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="notifications" checked />
+                      <span>Show notifications</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <h4><i class="fa fa-bell"></i> Notifications</h4>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="email-notifications" />
+                      <span>Email notifications</span>
+                    </label>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="sound-notifications" checked />
+                      <span>Sound notifications</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Database Settings -->
+              <div class="tab-pane" id="database-tab">
+                <div class="settings-section">
+                  <h4><i class="fa fa-database"></i> Database Information</h4>
+                  <div class="info-grid">
+                    <div class="info-item">
+                      <span class="info-label">Database Size</span>
+                      <span class="info-value" id="db-size"
+                        >Calculating...</span
+                      >
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">Patients</span>
+                      <span class="info-value" id="db-patients">0</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">Examinations</span>
+                      <span class="info-value" id="db-examinations">0</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">Users</span>
+                      <span class="info-value" id="db-users">0</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <h4><i class="fa fa-tools"></i> Maintenance</h4>
+                  <div class="form-group">
+                    <button class="btn warning" id="optimize-db">
+                      Optimize Database
+                    </button>
+                    <small class="form-hint"
+                      >Improve database performance</small
+                    >
+                  </div>
+
+                  <div class="form-group">
+                    <button class="btn danger" id="clear-cache">
+                      Clear Cache
+                    </button>
+                    <small class="form-hint">Remove temporary files</small>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Backup Settings -->
+              <div class="tab-pane" id="backup-tab">
+                <div class="settings-section">
+                  <h4><i class="fa fa-save"></i> Backup Settings</h4>
+                  <div class="form-group">
+                    <label for="backup-frequency">Auto Backup Frequency</label>
+                    <select id="backup-frequency">
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="never">Never</option>
+                    </select>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="backup-location">Backup Location</label>
+                    <div class="input-group">
+                      <input type="text" id="backup-location" readonly />
+                      <button class="btn secondary" id="browse-backup">
+                        Browse
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="encrypt-backups" />
+                      <span>Encrypt backups</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <h4><i class="fa fa-history"></i> Manual Backup</h4>
+                  <div class="form-group">
+                    <button class="btn primary" id="create-backup">
+                      Create Backup Now
+                    </button>
+                    <small class="form-hint"
+                      >Create a full database backup</small
+                    >
+                  </div>
+
+                  <div class="form-group">
+                    <button class="btn secondary" id="restore-backup">
+                      Restore from Backup
+                    </button>
+                    <small class="form-hint"
+                      >Restore database from backup file</small
+                    >
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <h4><i class="fa fa-list"></i> Recent Backups</h4>
+                  <div class="backup-list" id="backup-list">
+                    <div class="empty-message">
+                      <i class="fa fa-database"></i>
+                      <span>No backups found</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- License Settings -->
+              <div class="tab-pane" id="license-tab">
+                <div class="settings-section">
+                  <h4><i class="fa fa-key"></i> License Information</h4>
+                  <div class="license-info">
+                    <div class="info-item">
+                      <span class="info-label">Status</span>
+                      <span class="info-value" id="license-status-value"
+                        >Loading...</span
+                      >
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">Type</span>
+                      <span class="info-value" id="license-type">Standard</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">Expires</span>
+                      <span class="info-value" id="license-expires">Never</span>
+                    </div>
+                    <div class="info-item">
+                      <span class="info-label">Features</span>
+                      <span class="info-value" id="license-features">All</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <h4><i class="fa fa-refresh"></i> License Management</h4>
+                  <div class="form-group">
+                    <label for="license-key">License Key</label>
+                    <input
+                      type="text"
+                      id="license-key"
+                      placeholder="Enter license key"
+                    />
+                  </div>
+
+                  <div class="form-group">
+                    <button class="btn primary" id="validate-license">
+                      Validate License
+                    </button>
+                    <button class="btn warning" id="deactivate-license">
+                      Deactivate
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Advanced Settings -->
+              <div class="tab-pane" id="advanced-tab">
+                <div class="settings-section">
+                  <h4><i class="fa fa-code"></i> Developer Options</h4>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="debug-mode" />
+                      <span>Enable debug mode</span>
+                    </label>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="verbose-logging" />
+                      <span>Verbose logging</span>
+                    </label>
+                  </div>
+
+                  <div class="form-group">
+                    <button class="btn warning" id="export-logs">
+                      Export Logs
+                    </button>
+                    <small class="form-hint"
+                      >Export application logs for debugging</small
+                    >
+                  </div>
+                </div>
+
+                <div class="settings-section">
+                  <h4><i class="fa fa-shield"></i> Security</h4>
+                  <div class="form-group">
+                    <label for="session-timeout"
+                      >Session Timeout (minutes)</label
+                    >
+                    <input
+                      type="number"
+                      id="session-timeout"
+                      min="5"
+                      max="480"
+                      value="30"
+                    />
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="force-ssl" />
+                      <span>Force SSL/TLS</span>
+                    </label>
+                  </div>
+
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="audit-log" />
+                      <span>Enable audit logging</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="settings-section danger-zone">
+                  <h4>
+                    <i class="fa fa-exclamation-triangle"></i> Danger Zone
+                  </h4>
+                  <div class="form-group">
+                    <button class="btn danger" id="reset-settings">
+                      Reset All Settings
+                    </button>
+                    <small class="form-hint"
+                      >Reset all settings to defaults</small
+                    >
+                  </div>
+
+                  <div class="form-group">
+                    <button class="btn danger" id="clear-database">
+                      Clear All Data
+                    </button>
+                    <small class="form-hint"
+                      >⚠️ WARNING: This will delete ALL data</small
+                    >
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn secondary" data-action="close-settings-modal">
+            Cancel
+          </button>
+          <button class="btn primary" id="save-settings">Save Settings</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Scripts -->
     <script src="../js/main.js"></script>

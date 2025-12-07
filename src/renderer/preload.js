@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "license-activated",
       "close-license-gate",
       "login-successful", // Added login-successful to valid channels
+      "logout-successful",
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -55,7 +56,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       "license-validated",
       "update-available",
       "database-updated",
-      "login-success", // Added login success event
+      "login-success",
+      "logout-successful",
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => callback(...args));

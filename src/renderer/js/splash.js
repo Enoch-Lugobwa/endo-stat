@@ -5,9 +5,9 @@ class SplashScreen {
     this.init();
   }
 
-  init() {
+  async init() {
+    await this.loadAppVersion();
     this.startLoadingAnimation();
-    this.loadAppVersion();
     this.setCurrentYear();
   }
 
@@ -72,15 +72,11 @@ class SplashScreen {
 
   async loadAppVersion() {
     try {
-      // Get version from package.json via Electron
       if (window.electronAPI && window.electronAPI.getAppVersion) {
         const version = await window.electronAPI.getAppVersion();
         document.getElementById(
           "app-version"
         ).textContent = `Version ${version}`;
-      } else {
-        // Fallback for development
-        document.getElementById("app-version").textContent = "Version 1.0.0";
       }
     } catch (error) {
       console.error("Failed to load app version:", error);

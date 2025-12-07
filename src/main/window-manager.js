@@ -68,6 +68,7 @@ class WindowManager {
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
+          preload: path.join(__dirname, "../renderer/preload.js"),
         },
       });
 

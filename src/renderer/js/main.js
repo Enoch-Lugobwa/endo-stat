@@ -1,21 +1,40 @@
-// main.js - Custom JavaScript for Endo-Stat
+// main.js - Enhanced JavaScript for Endo-Stat
 class EndoStatApp {
   constructor() {
     this.currentUser = null;
     this.patients = [];
     this.users = [];
     this.licenseStatus = null;
+    this.currentPage = 1;
+    this.patientsPerPage = 10;
+    this.searchTerm = "";
     this.init();
   }
 
   async init() {
+    await this.loadAppVersion();
     await this.loadCurrentUser();
     await this.loadLicenseStatus();
-    await this.debugLicenseStatus();
     await this.loadPatients();
+    this.setCurrentDate();
     this.setupEventListeners();
     this.updateDashboard();
     this.checkLicenseExpiry();
+    this.setupUpdateListeners();
+  }
+
+  async loadAppVersion() {
+    try {
+      if (window.electronAPI && window.electronAPI.getAppVersion) {
+        const version = await window.electronAPI.getAppVersion();
+        document.getElementById(
+          "app-version"
+        ).textContent = `Version ${version}`;
+      }
+    } catch (error) {
+      console.error("Failed to load app version:", error);
+      document.getElementById("app-version").textContent = "Version 1.0.0";
+    }
   }
 
   async loadCurrentUser() {
@@ -26,13 +45,17 @@ class EndoStatApp {
         this.currentUser = userData;
         document.getElementById("current-user").textContent =
           userData.fullName || userData.username || "User";
+        document.getElementById("current-user-role").textContent =
+          userData.role || "User";
       } else {
         console.warn("No user session found");
         document.getElementById("current-user").textContent = "User";
+        document.getElementById("current-user-role").textContent = "User";
       }
     } catch (error) {
       console.error("Error loading current user:", error);
       document.getElementById("current-user").textContent = "User";
+      document.getElementById("current-user-role").textContent = "User";
     }
   }
 
@@ -47,42 +70,41 @@ class EndoStatApp {
     }
   }
 
-  async debugLicenseStatus() {
-    try {
-      console.log("=== DEBUG LICENSE STATUS ===");
-      const status = await window.electronAPI.getLicenseStatus();
-      console.log("Raw license status:", status);
-
-      if (status && status.valid) {
-        console.log("✅ License is valid");
-        if (status.expiresAt) {
-          const expiresAt = new Date(status.expiresAt);
-          const now = new Date();
-          const daysLeft = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
-          console.log("📅 Expires at:", status.expiresAt);
-          console.log("📅 Local expires at:", expiresAt);
-          console.log("📅 Today:", now);
-          console.log("⏰ Days left:", daysLeft);
-          console.log("📝 Expiry date valid:", !isNaN(expiresAt.getTime()));
-        } else {
-          console.log("📅 No expiry date (perpetual license)");
-        }
-      } else {
-        console.log("❌ License is invalid or missing");
-      }
-    } catch (error) {
-      console.error("Debug license error:", error);
-    }
+  setCurrentDate() {
+    const now = new Date();
+    const options = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    };
+    const dateString = now.toLocaleDateString("en-US", options);
+    document.getElementById("current-date").textContent = dateString;
+    document.getElementById("todays-date").textContent = now.toLocaleDateString(
+      "en-US",
+      { month: "short", day: "numeric" }
+    );
   }
 
   async loadPatients() {
     try {
-      const patients = await window.electronAPI.dbQuery(
-        "SELECT * FROM patients ORDER BY created_at DESC LIMIT 10"
-      );
+      let query = "SELECT * FROM patients";
+      const params = [];
+
+      if (this.searchTerm) {
+        query +=
+          " WHERE first_name LIKE ? OR last_name LIKE ? OR patient_id LIKE ?";
+        const searchParam = `%${this.searchTerm}%`;
+        params.push(searchParam, searchParam, searchParam);
+      }
+
+      query += " ORDER BY created_at DESC";
+
+      const patients = await window.electronAPI.dbQuery(query, params);
       console.log("Loaded patients:", patients?.length || 0);
       if (patients) {
-        this.patients = patients;
+        this.allPatients = patients;
+        this.updatePagination();
         this.renderPatientsTable();
         this.updatePatientCount();
       }
@@ -92,26 +114,36 @@ class EndoStatApp {
     }
   }
 
-  async loadUsers() {
-    try {
-      const users = await window.electronAPI.dbQuery(
-        "SELECT * FROM users ORDER BY created_at DESC"
-      );
-      console.log("Loaded users:", users?.length || 0);
-      if (users) {
-        this.users = users;
-        this.renderUsersTable();
-      }
-    } catch (error) {
-      console.error("Error loading users:", error);
-      this.showNotification("Error loading users", "error");
-    }
+  updatePagination() {
+    const totalPatients = this.allPatients?.length || 0;
+    const totalPages = Math.ceil(totalPatients / this.patientsPerPage);
+    const startIndex = (this.currentPage - 1) * this.patientsPerPage;
+    const endIndex = startIndex + this.patientsPerPage;
+
+    this.patients = this.allPatients?.slice(startIndex, endIndex) || [];
+
+    // Update pagination controls
+    document.getElementById("showing-count").textContent = Math.min(
+      this.patients.length,
+      this.patientsPerPage
+    );
+    document.getElementById("total-count").textContent = totalPatients;
+    document.getElementById("current-page").textContent = this.currentPage;
+
+    const prevBtn = document.getElementById("prev-page");
+    const nextBtn = document.getElementById("next-page");
+
+    prevBtn.disabled = this.currentPage === 1;
+    nextBtn.disabled = this.currentPage === totalPages || totalPages === 0;
   }
 
   updateLicenseDisplay() {
-    const statusBadge = document.querySelector(".status-badge.success");
-    if (!statusBadge) {
-      console.warn("License status badge not found");
+    const statusBadge = document.querySelector(".license-status");
+    const statusText = document.getElementById("license-status-text");
+    const statusValue = document.getElementById("license-status-value");
+
+    if (!statusBadge || !statusText || !statusValue) {
+      console.warn("License display elements not found");
       return;
     }
 
@@ -123,16 +155,13 @@ class EndoStatApp {
         const now = new Date();
         const daysLeft = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
 
-        console.log("License expiry check:", {
-          expiresAt: this.licenseStatus.expiresAt,
-          daysLeft: daysLeft,
-          valid: this.licenseStatus.valid,
-        });
+        console.log("License expiry check:", { daysLeft });
 
         if (daysLeft <= 0) {
           // License has expired
-          statusBadge.className = "status-badge danger";
-          statusBadge.innerHTML = `<i class="fa fa-exclamation-circle"></i> License Expired`;
+          statusBadge.className = "status-badge license-status danger";
+          statusText.textContent = "License Expired";
+          statusValue.textContent = "Expired";
           this.showNotification(
             "Your license has expired. Please renew immediately.",
             "error",
@@ -142,12 +171,14 @@ class EndoStatApp {
           // Less than 2 months
           if (daysLeft <= 14) {
             // Critical: less than 2 weeks
-            statusBadge.className = "status-badge danger";
-            statusBadge.innerHTML = `<i class="fa fa-exclamation-triangle"></i> ${daysLeft} days left`;
+            statusBadge.className = "status-badge license-status danger";
+            statusText.textContent = `${daysLeft} days left`;
+            statusValue.textContent = `Expires in ${daysLeft} days`;
           } else {
             // Warning: less than 2 months
-            statusBadge.className = "status-badge warning";
-            statusBadge.innerHTML = `<i class="fa fa-exclamation-triangle"></i> ${daysLeft} days left`;
+            statusBadge.className = "status-badge license-status warning";
+            statusText.textContent = `${daysLeft} days left`;
+            statusValue.textContent = `Expires in ${daysLeft} days`;
           }
 
           if (daysLeft <= 30) {
@@ -158,18 +189,21 @@ class EndoStatApp {
           }
         } else {
           // More than 2 months - show licensed with days
-          statusBadge.className = "status-badge success";
-          statusBadge.innerHTML = `<i class="fa fa-check-circle"></i> Licensed (${daysLeft} days)`;
+          statusBadge.className = "status-badge license-status success";
+          statusText.textContent = `Licensed (${daysLeft} days)`;
+          statusValue.textContent = `Active (${daysLeft} days)`;
         }
       } else {
         // No expiry date - perpetual license
-        statusBadge.className = "status-badge success";
-        statusBadge.innerHTML = `<i class="fa fa-check-circle"></i> Licensed`;
+        statusBadge.className = "status-badge license-status success";
+        statusText.textContent = "Licensed";
+        statusValue.textContent = "Active";
       }
     } else {
       // Invalid license
-      statusBadge.className = "status-badge danger";
-      statusBadge.innerHTML = `<i class="fa fa-exclamation-circle"></i> Unlicensed`;
+      statusBadge.className = "status-badge license-status danger";
+      statusText.textContent = "Unlicensed";
+      statusValue.textContent = "Invalid";
     }
   }
 
@@ -219,7 +253,11 @@ class EndoStatApp {
         <tr class="empty-row">
           <td colspan="7" class="empty-message">
             <i class="fa fa-users"></i>
-            <span>No patients found. Add your first patient to get started.</span>
+            <span>${
+              this.searchTerm
+                ? "No patients match your search"
+                : "No patients found. Add your first patient to get started."
+            }</span>
           </td>
         </tr>
       `;
@@ -231,15 +269,31 @@ class EndoStatApp {
         const age = patient.date_of_birth
           ? this.calculateAge(patient.date_of_birth)
           : "N/A";
+        const lastVisit = patient.updated_at || patient.created_at;
         return `
           <tr>
             <td><strong>${patient.patient_id || "N/A"}</strong></td>
-            <td>${patient.first_name} ${patient.last_name}</td>
-            <td><span class="badge info">${patient.gender || "N/A"}</span></td>
-            <td>${age}</td>
+            <td>
+              <div class="patient-name">
+                <strong>${patient.first_name} ${patient.last_name}</strong>
+                ${
+                  patient.email
+                    ? `<div class="patient-email">${patient.email}</div>`
+                    : ""
+                }
+              </div>
+            </td>
+            <td><span class="badge ${
+              patient.gender === "Male"
+                ? "info"
+                : patient.gender === "Female"
+                ? "primary"
+                : "warning"
+            }">${patient.gender || "N/A"}</span></td>
+            <td><span class="age-badge">${age}</span></td>
             <td>${patient.phone_number || "N/A"}</td>
             <td><small class="text-muted">${this.formatDate(
-              patient.created_at
+              lastVisit
             )}</small></td>
             <td>
               <div class="table-actions">
@@ -252,6 +306,11 @@ class EndoStatApp {
                   patient.id
                 })" title="New Visit">
                   <i class="fa fa-plus"></i>
+                </button>
+                <button class="btn-icon warning" onclick="app.editPatient(${
+                  patient.id
+                })" title="Edit Patient">
+                  <i class="fa fa-edit"></i>
                 </button>
               </div>
             </td>
@@ -284,10 +343,19 @@ class EndoStatApp {
       .map(
         (user) => `
         <tr>
-          <td>${user.username}</td>
+          <td>
+            <div class="user-info-cell">
+              <strong>${user.username}</strong>
+              ${user.email ? `<div class="user-email">${user.email}</div>` : ""}
+            </div>
+          </td>
           <td>${user.full_name}</td>
           <td><span class="badge ${
-            user.role === "admin" ? "danger" : "primary"
+            user.role === "admin"
+              ? "danger"
+              : user.role === "doctor"
+              ? "info"
+              : "primary"
           }">${user.role}</span></td>
           <td><span class="badge ${user.is_active ? "success" : "warning"}">${
           user.is_active ? "Active" : "Inactive"
@@ -326,24 +394,28 @@ class EndoStatApp {
     const patientCountEl = document.getElementById("patient-count");
 
     if (totalPatientsEl) {
-      totalPatientsEl.textContent = this.patients.length;
+      totalPatientsEl.textContent = this.allPatients?.length || 0;
     }
     if (patientCountEl) {
-      patientCountEl.textContent = this.patients.length;
+      patientCountEl.textContent = this.allPatients?.length || 0;
     }
-  }
 
-  updatePatientCount() {
-    const patientCountEl = document.getElementById("patient-count");
-    if (patientCountEl) {
-      patientCountEl.textContent = this.patients.length;
+    // Update today's visits (placeholder - implement based on your data)
+    const todayVisitsEl = document.getElementById("today-visits");
+    if (todayVisitsEl) {
+      const today = new Date().toISOString().split("T")[0];
+      const todaysPatients =
+        this.allPatients?.filter(
+          (p) => p.created_at && p.created_at.startsWith(today)
+        ) || [];
+      todayVisitsEl.textContent = todaysPatients.length;
     }
   }
 
   setupEventListeners() {
     console.log("Setting up event listeners...");
 
-    // Navigation - User Management and Settings
+    // Navigation
     document.querySelectorAll("[data-view]").forEach((link) => {
       link.addEventListener("click", (e) => {
         e.preventDefault();
@@ -374,8 +446,6 @@ class EndoStatApp {
         console.log("Logout initiated");
         this.logout();
       });
-    } else {
-      console.warn("Logout button not found");
     }
 
     // User menu dropdown
@@ -386,32 +456,166 @@ class EndoStatApp {
         userMenu.classList.toggle("active");
       });
 
-      // Close dropdown when clicking outside
       document.addEventListener("click", (e) => {
         if (!e.target.closest(".user-menu")) {
           userMenu.classList.remove("active");
         }
       });
-    } else {
-      console.warn("User menu not found");
+    }
+
+    // Patient search
+    const searchInput = document.getElementById("patient-search");
+    if (searchInput) {
+      let searchTimeout;
+      searchInput.addEventListener("input", (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          this.searchTerm = e.target.value.trim();
+          this.currentPage = 1;
+          this.loadPatients();
+        }, 300);
+      });
+    }
+
+    // Pagination
+    document.getElementById("prev-page")?.addEventListener("click", () => {
+      if (this.currentPage > 1) {
+        this.currentPage--;
+        this.updatePagination();
+        this.renderPatientsTable();
+      }
+    });
+
+    document.getElementById("next-page")?.addEventListener("click", () => {
+      const totalPages = Math.ceil(
+        (this.allPatients?.length || 0) / this.patientsPerPage
+      );
+      if (this.currentPage < totalPages) {
+        this.currentPage++;
+        this.updatePagination();
+        this.renderPatientsTable();
+      }
+    });
+
+    // Update check buttons
+    const checkUpdateBtns = document.querySelectorAll(
+      "#check-updates-btn, #dashboard-update-btn"
+    );
+    checkUpdateBtns.forEach((btn) => {
+      btn.addEventListener("click", () => this.checkForUpdates());
+    });
+
+    // Modal close buttons
+    document
+      .querySelectorAll(
+        ".modal-close, [data-action='close-update-modal'], [data-action='cancel-update']"
+      )
+      .forEach((btn) => {
+        btn.addEventListener("click", () => {
+          this.closeUpdateModal();
+        });
+      });
+  }
+
+  setupUpdateListeners() {
+    // Listen for update events from main process
+    if (window.electronAPI && window.electronAPI.on) {
+      window.electronAPI.on("update-download-progress", (progress) => {
+        this.showUpdateProgress(progress);
+      });
+
+      window.electronAPI.on("update-downloaded", (info) => {
+        this.showUpdateReady(info);
+      });
+
+      window.electronAPI.on("update-notification", (data) => {
+        this.showNotification(data.message, "info");
+      });
+    }
+  }
+
+  async checkForUpdates() {
+    try {
+      this.showNotification("Checking for updates...", "info");
+      const result = await window.electronAPI.checkForUpdatesManually();
+
+      if (result.status === "update-available") {
+        this.showNotification(`Update ${result.version} available!`, "success");
+        // Auto-updater should automatically start download based on our configuration
+      } else if (result.status === "update-not-available") {
+        this.showNotification("You're using the latest version", "success");
+      } else {
+        this.showNotification(
+          `Update check failed: ${result.message}`,
+          "error"
+        );
+      }
+    } catch (error) {
+      console.error("Error checking for updates:", error);
+      this.showNotification("Failed to check for updates", "error");
+    }
+  }
+
+  showUpdateProgress(progress) {
+    const modal = document.getElementById("update-progress-modal");
+    const progressFill = document.getElementById("update-progress-fill");
+    const progressPercent = document.getElementById("update-progress-percent");
+    const progressSpeed = document.getElementById("update-progress-speed");
+    const downloaded = document.getElementById("update-downloaded");
+    const total = document.getElementById("update-total");
+    const timeRemaining = document.getElementById("update-time-remaining");
+
+    if (!modal) return;
+
+    // Show modal
+    modal.classList.add("active");
+
+    // Update progress
+    const percent = Math.round(progress.percent);
+    progressFill.style.width = `${percent}%`;
+    progressPercent.textContent = `${percent}%`;
+    progressSpeed.textContent =
+      this.formatBytes(progress.bytesPerSecond) + "/s";
+    downloaded.textContent = this.formatBytes(progress.transferred);
+    total.textContent = this.formatBytes(progress.total);
+
+    // Calculate time remaining
+    if (progress.bytesPerSecond > 0) {
+      const remainingBytes = progress.total - progress.transferred;
+      const secondsRemaining = remainingBytes / progress.bytesPerSecond;
+      const minutesRemaining = Math.ceil(secondsRemaining / 60);
+      timeRemaining.textContent = `${minutesRemaining} minute${
+        minutesRemaining !== 1 ? "s" : ""
+      }`;
+    }
+  }
+
+  showUpdateReady(info) {
+    this.closeUpdateModal();
+    this.showNotification(
+      `Update ${info.version} downloaded and ready to install!`,
+      "success",
+      5000
+    );
+  }
+
+  closeUpdateModal() {
+    const modal = document.getElementById("update-progress-modal");
+    if (modal) {
+      modal.classList.remove("active");
     }
   }
 
   navigateToView(viewName) {
-    console.log("Navigating to view:", viewName);
-
-    // Hide all views
     document.querySelectorAll(".view-container").forEach((view) => {
       view.classList.remove("active");
     });
 
-    // Show selected view
     const targetView = document.getElementById(`${viewName}-view`);
     if (targetView) {
       targetView.classList.add("active");
       console.log(`View ${viewName} activated`);
 
-      // Load data for specific views
       if (viewName === "user-management") {
         this.loadUsers();
       } else if (viewName === "settings") {
@@ -435,14 +639,23 @@ class EndoStatApp {
       case "manage-examiners":
         this.navigateToView("examiners");
         break;
-      case "manage-referrers":
-        this.navigateToView("referrers");
-        break;
       case "view-all-patients":
-        this.navigateToView("patients");
+        this.currentPage = 1;
+        this.searchTerm = "";
+        document.getElementById("patient-search").value = "";
+        this.loadPatients();
         break;
       case "add-user":
         this.showAddUserModal();
+        break;
+      case "check-updates":
+        this.checkForUpdates();
+        break;
+      case "quick-stats":
+        this.showQuickStats();
+        break;
+      case "generate-report":
+        this.generateReport();
         break;
       default:
         console.warn("Unknown action:", action);
@@ -452,40 +665,47 @@ class EndoStatApp {
 
   async logout() {
     try {
-      console.log("Starting logout process...");
-      const result = await window.electronAPI.userLogout();
-      console.log("Logout result:", result);
+      console.log("Logging out...");
 
-      if (result && result.success) {
-        this.showNotification("Logout successful", "success");
-        // Wait a moment before closing to show the notification
-        setTimeout(() => {
-          // Close the window or redirect to login
-          if (window.electronAPI && window.electronAPI.send) {
-            window.electronAPI.send("close-window");
-          } else {
-            window.close();
-          }
-        }, 1000);
+      // 1. Clear the stored session
+      const response = await window.electronAPI.userLogout();
+
+      if (response.success) {
+        console.log("Session cleared, redirecting to login...");
+
+        // 2. Tell the main process to show the login window
+        window.electronAPI.send("logout-successful");
       } else {
-        const errorMsg = result?.error || "Unknown error";
-        console.error("Logout failed:", errorMsg);
-        this.showNotification(`Logout failed: ${errorMsg}`, "error");
+        console.error("Logout failed:", response.error);
       }
     } catch (error) {
-      console.error("Error during logout:", error);
-      this.showNotification("Logout failed: " + error.message, "error");
+      console.error("Logout error:", error);
     }
   }
 
   async loadSettings() {
     try {
       console.log("Loading settings...");
-      // Implement settings loading logic here
       this.showNotification("Settings loaded", "info");
     } catch (error) {
       console.error("Error loading settings:", error);
       this.showNotification("Error loading settings", "error");
+    }
+  }
+
+  async loadUsers() {
+    try {
+      const users = await window.electronAPI.dbQuery(
+        "SELECT * FROM users ORDER BY created_at DESC"
+      );
+      console.log("Loaded users:", users?.length || 0);
+      if (users) {
+        this.users = users;
+        this.renderUsersTable();
+      }
+    } catch (error) {
+      console.error("Error loading users:", error);
+      this.showNotification("Error loading users", "error");
     }
   }
 
@@ -517,23 +737,55 @@ class EndoStatApp {
     return date.toLocaleDateString();
   }
 
-  // Modal methods - need implementation
+  formatBytes(bytes) {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  }
+
+  // New methods for enhanced features
+  showQuickStats() {
+    const stats = {
+      totalPatients: this.allPatients?.length || 0,
+      todayVisits:
+        this.allPatients?.filter(
+          (p) =>
+            p.created_at &&
+            new Date(p.created_at).toDateString() === new Date().toDateString()
+        ).length || 0,
+      monthlyGrowth: "+15%", // Placeholder
+      activeUsers: this.users?.filter((u) => u.is_active).length || 0,
+    };
+
+    const message = `📊 Quick Stats:\n
+    • Total Patients: ${stats.totalPatients}
+    • Today's Visits: ${stats.todayVisits}
+    • Monthly Growth: ${stats.monthlyGrowth}
+    • Active Users: ${stats.activeUsers}`;
+
+    this.showNotification("Quick stats displayed in console", "info");
+    console.log(message);
+  }
+
+  generateReport() {
+    this.showNotification("Report generation feature coming soon", "info");
+  }
+
   showNewPatientModal() {
     console.log("Show new patient modal");
     this.showNotification("New patient feature coming soon", "info");
-    // Implementation for new patient modal
   }
 
   showNewVisitModal() {
     console.log("Show new visit modal");
     this.showNotification("New visit feature coming soon", "info");
-    // Implementation for new visit modal
   }
 
   showAddUserModal() {
     console.log("Show add user modal");
     this.showNotification("Add user feature coming soon", "info");
-    // Implementation for add user modal
   }
 
   viewPatient(patientId) {
@@ -542,7 +794,6 @@ class EndoStatApp {
       `View patient ${patientId} - feature coming soon`,
       "info"
     );
-    // Implementation for viewing patient details
   }
 
   startNewVisit(patientId) {
@@ -551,13 +802,19 @@ class EndoStatApp {
       `New visit for patient ${patientId} - feature coming soon`,
       "info"
     );
-    // Implementation for starting new visit
+  }
+
+  editPatient(patientId) {
+    console.log("Edit patient:", patientId);
+    this.showNotification(
+      `Edit patient ${patientId} - feature coming soon`,
+      "info"
+    );
   }
 
   editUser(userId) {
     console.log("Edit user:", userId);
     this.showNotification(`Edit user ${userId} - feature coming soon`, "info");
-    // Implementation for editing user
   }
 
   async toggleUserStatus(userId, currentStatus) {
@@ -592,7 +849,6 @@ class EndoStatApp {
   }
 
   showNotification(message, type = "info", duration = 3000) {
-    // Remove existing notifications
     const existingNotifications = document.querySelectorAll(
       ".custom-notification"
     );
@@ -602,7 +858,6 @@ class EndoStatApp {
       }
     });
 
-    // Create new notification
     const notification = document.createElement("div");
     notification.className = `custom-notification ${type}`;
     notification.innerHTML = `
@@ -665,41 +920,24 @@ if (!document.querySelector("#notification-styles")) {
   style.id = "notification-styles";
   style.textContent = `
     @keyframes slideInRight {
-      from {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
     }
     
     @keyframes slideOutRight {
-      from {
-        transform: translateX(0);
-        opacity: 1;
-      }
-      to {
-        transform: translateX(100%);
-        opacity: 0;
-      }
-    }
-    
-    .custom-notification {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(100%); opacity: 0; }
     }
   `;
   document.head.appendChild(style);
 }
 
-// Initialize the application when DOM is loaded
+// Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM loaded, initializing EndoStatApp...");
   window.app = new EndoStatApp();
 });
 
-// Handle errors
 window.addEventListener("error", (error) => {
   console.error("Global error:", error);
 });
