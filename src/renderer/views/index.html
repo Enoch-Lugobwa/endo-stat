@@ -20,15 +20,18 @@
         </div>
 
         <div class="header-controls">
-          <!-- Update Check Button -->
-          <button
-            class="update-btn"
-            id="check-updates-btn"
-            title="Check for updates"
-          >
-            <i class="fa fa-refresh"></i>
-            <span class="update-text">Check for Updates</span>
-          </button>
+          <!-- Update Check Button with Badge -->
+          <div class="update-indicator">
+            <button
+              class="update-btn"
+              id="check-updates-btn"
+              title="Check for updates"
+            >
+              <i class="fa fa-refresh"></i>
+              <span class="update-text">Check for Updates</span>
+            </button>
+            <span class="update-badge" id="update-badge">1</span>
+          </div>
 
           <!-- User Menu -->
           <div class="user-menu">
@@ -331,11 +334,11 @@
                       <span class="status-value">85% Free</span>
                     </div>
                   </div>
-                  <div class="status-item info">
-                    <i class="fa fa-info-circle"></i>
+                  <div class="status-item" id="update-status-item">
+                    <i class="fa fa-refresh" id="update-status-icon"></i>
                     <div>
                       <span class="status-label">Updates</span>
-                      <span class="status-value" id="update-status"
+                      <span class="status-value" id="update-status-text"
                         >Checking...</span
                       >
                     </div>
@@ -462,17 +465,88 @@
       </div>
     </main>
 
+    <!-- Update Available Modal -->
+    <div class="modal-overlay" id="update-available-modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3><i class="fa fa-download"></i> Update Available!</h3>
+          <button
+            class="modal-close"
+            data-action="close-update-available-modal"
+          >
+            &times;
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="update-info-card">
+            <div class="update-header">
+              <div class="current-version">
+                <span>Current Version:</span>
+                <span
+                  id="current-version-text"
+                  style="font-weight: bold"
+                ></span>
+              </div>
+              <i class="fa fa-arrow-right" style="color: #3498db"></i>
+              <div class="new-version">
+                <span>New Version:</span>
+                <span
+                  id="new-version-text"
+                  style="font-weight: bold; color: #2ecc71"
+                ></span>
+              </div>
+            </div>
+
+            <div class="update-details">
+              <h4><i class="fa fa-newspaper-o"></i> What's New:</h4>
+              <div class="release-notes" id="release-notes">
+                <p>Loading release notes...</p>
+              </div>
+            </div>
+
+            <div class="update-size-info">
+              <i class="fa fa-database"></i>
+              <span>Update Size: </span>
+              <span id="update-size-info">Calculating...</span>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button
+            class="btn secondary"
+            data-action="close-update-available-modal"
+          >
+            <i class="fa fa-clock-o"></i> Remind Me Later
+          </button>
+          <button class="btn primary" id="download-update-now-btn">
+            <i class="fa fa-download"></i> Download Now
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Update Progress Modal -->
     <div class="modal-overlay" id="update-progress-modal">
       <div class="modal-content">
         <div class="modal-header">
-          <h3><i class="fa fa-refresh"></i> Downloading Update</h3>
+          <h3>
+            <i class="fa fa-refresh"></i>
+            <span id="update-modal-title">Downloading Update</span>
+          </h3>
           <button class="modal-close" data-action="close-update-modal">
             &times;
           </button>
         </div>
         <div class="modal-body">
           <div class="update-progress">
+            <div
+              class="progress-info"
+              id="update-version-info"
+              style="display: none"
+            >
+              <span>Updating to version:</span>
+              <span id="update-target-version" style="font-weight: bold"></span>
+            </div>
             <div class="progress-bar">
               <div class="progress-fill" id="update-progress-fill"></div>
             </div>
@@ -499,13 +573,24 @@
               </div>
             </div>
           </div>
-          <p class="update-message">
+          <p class="update-message" id="update-modal-message">
             Please wait while the update downloads...
           </p>
         </div>
         <div class="modal-footer">
-          <button class="btn secondary" data-action="cancel-update">
+          <button
+            class="btn secondary"
+            data-action="cancel-update"
+            id="cancel-update-btn"
+          >
             Cancel
+          </button>
+          <button
+            class="btn primary"
+            id="install-update-btn"
+            style="display: none"
+          >
+            <i class="fa fa-rocket"></i> Install & Restart
           </button>
         </div>
       </div>
@@ -1097,8 +1182,9 @@
         </div>
       </div>
     </div>
-
     <!-- Scripts -->
+    <script src="../js/main.js"></script>
+    <script src="../js/update-manager.js"></script>
     <script src="../js/main.js"></script>
   </body>
 </html>

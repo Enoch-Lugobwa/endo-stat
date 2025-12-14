@@ -1,4 +1,4 @@
-// main.js - Enhanced JavaScript for Endo-Stat
+// src/renderer/js/main.js - Enhanced JavaScript for Endo-Stat
 class EndoStatApp {
   constructor() {
     this.currentUser = null;
@@ -10,6 +10,12 @@ class EndoStatApp {
     this.searchTerm = "";
     this.currentEditingUserId = null;
     this.settings = this.loadSettings();
+    this.updateInfo = null;
+    this.updateAvailable = false;
+    this.updateDownloaded = false;
+    this.downloadProgress = 0;
+    this.currentAppVersion = "1.0.0";
+    this.isUpdateFeatureAvailable = false;
     this.init();
   }
 
@@ -22,7 +28,7 @@ class EndoStatApp {
     this.setupEventListeners();
     this.updateDashboard();
     this.checkLicenseExpiry();
-    this.setupUpdateListeners();
+    this.addUpdateStyles();
   }
 
   async loadAppVersion() {
@@ -32,10 +38,823 @@ class EndoStatApp {
         document.getElementById(
           "app-version"
         ).textContent = `Version ${version}`;
+        this.currentAppVersion = version;
+        console.log("📱 App version loaded:", version);
+      } else {
+        document.getElementById("app-version").textContent = "Version 1.0.0";
+        this.currentAppVersion = "1.0.0";
+        console.warn("getAppVersion API not available, using default");
       }
     } catch (error) {
       console.error("Failed to load app version:", error);
       document.getElementById("app-version").textContent = "Version 1.0.0";
+      this.currentAppVersion = "1.0.0";
+    }
+  }
+
+  async initializeAutoUpdateCheck() {
+    try {
+      // Only auto-check if feature is available
+      if (this.isUpdateFeatureAvailable) {
+        // Check for updates on startup (silently) after delay
+        console.log("🔄 Scheduling auto-update check in 5 seconds...");
+        setTimeout(() => {
+          this.checkForUpdates(false); // false = silent check
+        }, 5000);
+      }
+    } catch (error) {
+      console.error("Failed to initialize auto-update check:", error);
+    }
+  }
+
+  setupUpdateListeners() {
+    console.log("🔌 Setting up update listeners...");
+
+    // Remove any existing listeners first
+    if (window.electronAPI && window.electronAPI.removeAllUpdateListeners) {
+      window.electronAPI.removeAllUpdateListeners();
+    }
+
+    // Set up new listeners
+    if (window.electronAPI) {
+      // Use new event names first (update-checking, update-available, etc.)
+      window.electronAPI.onUpdateChecking(() => {
+        console.log("📡 Received update-checking event");
+        this.onUpdateChecking();
+      });
+
+      window.electronAPI.onUpdateAvailable((event, info) => {
+        console.log("📡 Received update-available event:", info);
+        this.onUpdateAvailable(info);
+      });
+
+      window.electronAPI.onUpdateNotAvailable((event, info) => {
+        console.log("📡 Received update-not-available event:", info);
+        this.onUpdateNotAvailable(info);
+      });
+
+      window.electronAPI.onUpdateDownloadProgress((event, progress) => {
+        console.log("📡 Received update-download-progress event:", progress);
+        this.onUpdateDownloadProgress(progress);
+      });
+
+      window.electronAPI.onUpdateDownloaded((event, info) => {
+        console.log("📡 Received update-downloaded event:", info);
+        this.onUpdateDownloaded(info);
+      });
+
+      window.electronAPI.onUpdateError((event, error) => {
+        console.log("📡 Received update-error event:", error);
+        this.onUpdateError(error);
+      });
+
+      // Also set up old event names for compatibility
+      window.electronAPI.onAutoUpdateChecking(() => {
+        console.log("📡 Received old auto-updater:checking-for-update event");
+        this.onUpdateChecking();
+      });
+
+      window.electronAPI.onAutoUpdateAvailable((event, info) => {
+        console.log(
+          "📡 Received old auto-updater:update-available event:",
+          info
+        );
+        this.onUpdateAvailable(info);
+      });
+
+      console.log("✅ Update listeners setup complete");
+    } else {
+      console.warn(
+        "⚠️ electronAPI not available for setting up update listeners"
+      );
+    }
+  }
+
+  onUpdateChecking() {
+    console.log("🔍 Update check in progress...");
+    this.updateStatusUI("checking", "Checking for updates...");
+  }
+
+  onUpdateAvailable(info) {
+    console.log("✅ Update available:", info);
+    this.updateInfo = info;
+    this.updateAvailable = true;
+
+    // Show update badge
+    const updateBadge = document.getElementById("update-badge");
+    if (updateBadge) {
+      updateBadge.classList.add("available");
+      updateBadge.textContent = "!";
+      console.log("📛 Update badge shown");
+    }
+
+    this.updateStatusUI("available", `Update ${info.version} available`);
+
+    // Show update notification
+    this.showUpdateAvailableNotification(info);
+  }
+
+  onUpdateNotAvailable(info) {
+    console.log("✅ No updates available:", info);
+    this.updateAvailable = false;
+    this.updateStatusUI("current", "Up to date");
+
+    // Hide update badge
+    const updateBadge = document.getElementById("update-badge");
+    if (updateBadge) {
+      updateBadge.classList.remove("available");
+      console.log("📛 Update badge hidden");
+    }
+  }
+
+  onUpdateDownloadProgress(progress) {
+    console.log("📥 Download progress:", progress.percent);
+    this.downloadProgress = Math.round(progress.percent || 0);
+    this.showUpdateProgress(progress);
+  }
+
+  onUpdateDownloaded(info) {
+    console.log("🎉 Update downloaded:", info);
+    this.updateDownloaded = true;
+    this.updateAvailable = false;
+
+    this.updateStatusUI("ready", "Ready to install");
+
+    // Hide progress modal and show install button
+    this.showUpdateReady(info);
+  }
+
+  onUpdateError(error) {
+    console.error("❌ Update error:", error);
+    this.updateStatusUI("error", "Update error");
+
+    // Check if it's a development mode error
+    const errorMessage = error.message || String(error);
+    if (
+      errorMessage.includes("development") ||
+      errorMessage.includes("dev mode")
+    ) {
+      this.showNotification(
+        "Auto-updates are disabled in development mode",
+        "info"
+      );
+    } else {
+      this.showNotification(`Update error: ${errorMessage}`, "error");
+    }
+
+    // Hide update badge
+    const updateBadge = document.getElementById("update-badge");
+    if (updateBadge) {
+      updateBadge.classList.remove("available");
+    }
+  }
+
+  updateStatusUI(status, message) {
+    const statusItem = document.getElementById("update-status-item");
+    const statusIcon = document.getElementById("update-status-icon");
+    const statusText = document.getElementById("update-status-text");
+
+    if (!statusItem || !statusIcon || !statusText) {
+      console.warn("Update status UI elements not found");
+      return;
+    }
+
+    console.log(`🔄 Updating status UI: ${status} - ${message}`);
+
+    // Reset all classes
+    statusItem.className = "status-item";
+    statusIcon.className = "fa";
+
+    switch (status) {
+      case "checking":
+        statusItem.classList.add("info");
+        statusIcon.classList.add("fa-refresh", "fa-spin");
+        break;
+      case "available":
+        statusItem.classList.add("warning");
+        statusIcon.classList.add("fa-download");
+        break;
+      case "downloading":
+        statusItem.classList.add("info");
+        statusIcon.classList.add("fa-download");
+        break;
+      case "ready":
+        statusItem.classList.add("success");
+        statusIcon.classList.add("fa-check-circle");
+        break;
+      case "error":
+        statusItem.classList.add("danger");
+        statusIcon.classList.add("fa-exclamation-circle");
+        break;
+      case "current":
+        statusItem.classList.add("success");
+        statusIcon.classList.add("fa-check-circle");
+        break;
+      case "info":
+        statusItem.classList.add("info");
+        statusIcon.classList.add("fa-info-circle");
+        break;
+      default:
+        statusItem.classList.add("info");
+        statusIcon.classList.add("fa-info-circle");
+    }
+
+    statusText.textContent = message;
+  }
+
+  async checkForUpdates(showNotifications = true) {
+    try {
+      console.log(
+        "🔍 Manual update check requested, showNotifications:",
+        showNotifications
+      );
+
+      // Check if update feature is available
+      if (!this.isUpdateFeatureAvailable) {
+        let isDev = false;
+        try {
+          if (window.electronAPI?.isDev) {
+            isDev = await window.electronAPI.isDev();
+          }
+        } catch (error) {
+          console.warn("Could not check dev mode:", error);
+        }
+
+        const message = isDev
+          ? "Auto-updates are disabled in development mode"
+          : "Auto-update feature is not available";
+
+        if (showNotifications) {
+          this.showNotification(message, "info");
+        }
+        this.updateStatusUI("error", "Updates disabled");
+        return { status: "error", message: message };
+      }
+
+      if (showNotifications) {
+        this.showNotification("Checking for updates...", "info");
+      }
+
+      // Check if the API exists before calling it
+      if (!window.electronAPI.checkForUpdates) {
+        const message = "Update check API not available";
+        if (showNotifications) {
+          this.showNotification(message, "error");
+        }
+        return { status: "error", message: message };
+      }
+
+      // Call the IPC handler
+      console.log("📡 Calling checkForUpdates via IPC...");
+      const result = await window.electronAPI.checkForUpdates();
+      console.log("📡 Update check result:", result);
+
+      if (showNotifications) {
+        if (result.status === "update-available") {
+          this.showNotification(
+            `Update ${result.version} available!`,
+            "success"
+          );
+        } else if (result.status === "update-not-available") {
+          this.showNotification("You're using the latest version", "success");
+        } else if (result.status === "error") {
+          this.showNotification(
+            `Update check failed: ${result.message}`,
+            "error"
+          );
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error("❌ Error checking for updates:", error);
+      if (showNotifications) {
+        this.showNotification("Failed to check for updates", "error");
+      }
+      this.updateStatusUI("error", "Check failed");
+      return { status: "error", message: error.message };
+    }
+  }
+
+  showUpdateAvailableNotification(info) {
+    const modal = document.getElementById("update-available-modal");
+    if (!modal) {
+      console.warn("Update available modal not found");
+      return;
+    }
+
+    console.log("🪟 Showing update available notification");
+
+    // Set version info
+    document.getElementById("current-version-text").textContent =
+      this.currentAppVersion;
+    document.getElementById("new-version-text").textContent = info.version;
+
+    // Set release notes
+    const releaseNotesEl = document.getElementById("release-notes");
+    if (info.releaseNotes) {
+      releaseNotesEl.innerHTML = `<p>${info.releaseNotes}</p>`;
+    } else {
+      releaseNotesEl.innerHTML = `<p class="text-muted">No release notes available.</p>`;
+    }
+
+    // Set update size if available
+    const updateSizeEl = document.getElementById("update-size-info");
+    if (info.size) {
+      updateSizeEl.textContent = `Update Size: ${this.formatBytes(info.size)}`;
+    } else {
+      updateSizeEl.textContent = "Update Size: Calculating...";
+    }
+
+    // Show modal
+    modal.classList.add("active");
+
+    // Setup download button
+    const downloadBtn = document.getElementById("download-update-now-btn");
+    if (downloadBtn) {
+      downloadBtn.onclick = () => {
+        console.log("⬇️ Download update button clicked");
+        this.downloadUpdate();
+        this.closeModal("update-available-modal");
+      };
+    }
+  }
+
+  showUpdateProgress(progress) {
+    const modal = document.getElementById("update-progress-modal");
+    const progressFill = document.getElementById("update-progress-fill");
+    const progressPercent = document.getElementById("update-progress-percent");
+    const progressSpeed = document.getElementById("update-progress-speed");
+    const downloaded = document.getElementById("update-downloaded");
+    const total = document.getElementById("update-total");
+    const timeRemaining = document.getElementById("update-time-remaining");
+    const installBtn = document.getElementById("install-update-btn");
+    const cancelBtn = document.getElementById("cancel-update-btn");
+    const modalTitle = document.getElementById("update-modal-title");
+    const modalMessage = document.getElementById("update-modal-message");
+
+    if (!modal) {
+      console.warn("Update progress modal not found");
+      return;
+    }
+
+    // Show modal if not already shown
+    if (!modal.classList.contains("active")) {
+      console.log("🪟 Showing update progress modal");
+      modal.classList.add("active");
+      modalTitle.textContent = "Downloading Update";
+      modalMessage.textContent = "Please wait while the update downloads...";
+      if (installBtn) installBtn.style.display = "none";
+      if (cancelBtn) {
+        cancelBtn.style.display = "block";
+        cancelBtn.onclick = () => this.cancelUpdate();
+      }
+    }
+
+    // Update progress
+    const percent = Math.round(progress.percent || 0);
+    if (progressFill) progressFill.style.width = `${percent}%`;
+    if (progressPercent) progressPercent.textContent = `${percent}%`;
+
+    if (progress.bytesPerSecond && progressSpeed) {
+      progressSpeed.textContent =
+        this.formatBytes(progress.bytesPerSecond) + "/s";
+    }
+
+    if (progress.transferred && downloaded) {
+      downloaded.textContent = this.formatBytes(progress.transferred);
+    }
+
+    if (progress.total && total) {
+      total.textContent = this.formatBytes(progress.total);
+    }
+
+    // Calculate time remaining
+    if (
+      progress.bytesPerSecond > 0 &&
+      progress.total &&
+      progress.transferred &&
+      timeRemaining
+    ) {
+      const remainingBytes = progress.total - progress.transferred;
+      const secondsRemaining = remainingBytes / progress.bytesPerSecond;
+
+      if (secondsRemaining < 60) {
+        timeRemaining.textContent = `${Math.ceil(secondsRemaining)} second${
+          secondsRemaining !== 1 ? "s" : ""
+        }`;
+      } else {
+        const minutesRemaining = Math.ceil(secondsRemaining / 60);
+        timeRemaining.textContent = `${minutesRemaining} minute${
+          minutesRemaining !== 1 ? "s" : ""
+        }`;
+      }
+    }
+
+    // Update UI status
+    this.updateStatusUI("downloading", `Downloading ${percent}%`);
+  }
+
+  showUpdateReady(info) {
+    const modal = document.getElementById("update-progress-modal");
+    const modalTitle = document.getElementById("update-modal-title");
+    const modalMessage = document.getElementById("update-modal-message");
+    const installBtn = document.getElementById("install-update-btn");
+    const cancelBtn = document.getElementById("cancel-update-btn");
+
+    if (!modal) {
+      console.warn("Update progress modal not found");
+      return;
+    }
+
+    console.log("✅ Showing update ready screen");
+
+    if (modalTitle) modalTitle.textContent = "Update Ready!";
+    if (modalMessage)
+      modalMessage.textContent = `Update ${info.version} has been downloaded and is ready to install.`;
+    if (installBtn) {
+      installBtn.style.display = "block";
+      installBtn.onclick = () => this.installUpdate();
+    }
+    if (cancelBtn) cancelBtn.style.display = "none";
+
+    // Show notification
+    this.showNotification(
+      `Update ${info.version} downloaded and ready to install!`,
+      "success",
+      5000
+    );
+  }
+
+  async downloadUpdate() {
+    try {
+      if (!this.isUpdateFeatureAvailable) {
+        this.showNotification("Update feature is not available", "error");
+        return;
+      }
+
+      console.log("⬇️ Starting update download...");
+      this.showNotification("Starting download...", "info");
+
+      const result = await window.electronAPI.downloadUpdate();
+      console.log("Download result:", result);
+
+      if (result.success) {
+        this.showNotification("Download started successfully", "success");
+        // Progress will be shown via event listeners
+      } else {
+        this.showNotification(`Download failed: ${result.message}`, "error");
+      }
+    } catch (error) {
+      console.error("❌ Error starting download:", error);
+      this.showNotification(`Download error: ${error.message}`, "error");
+    }
+  }
+
+  async installUpdate() {
+    try {
+      if (!this.isUpdateFeatureAvailable) {
+        this.showNotification("Update feature is not available", "error");
+        return;
+      }
+
+      if (
+        confirm(
+          "The application will restart to install the update. Please save any unsaved work before continuing."
+        )
+      ) {
+        console.log("⚡ Installing update...");
+        this.showNotification("Installing update...", "info");
+
+        const result = await window.electronAPI.installUpdate();
+        console.log("Install result:", result);
+
+        if (!result.success) {
+          this.showNotification(`Install failed: ${result.message}`, "error");
+        }
+        // If successful, the app will restart automatically
+      }
+    } catch (error) {
+      console.error("❌ Error installing update:", error);
+      this.showNotification(`Install error: ${error.message}`, "error");
+    }
+  }
+
+  cancelUpdate() {
+    console.log("❌ Update cancelled");
+    this.closeModal("update-progress-modal");
+    this.showNotification("Update cancelled", "info");
+    this.updateStatusUI("available", "Update available");
+  }
+
+  setupEventListeners() {
+    console.log("🔌 Setting up event listeners...");
+
+    // Navigation
+    document.querySelectorAll("[data-view]").forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const viewName = e.target
+          .closest("[data-view]")
+          .getAttribute("data-view");
+        console.log("Navigating to view:", viewName);
+        this.navigateToView(viewName);
+      });
+    });
+
+    // Quick Actions
+    document.querySelectorAll("[data-action]").forEach((button) => {
+      button.addEventListener("click", (e) => {
+        const action = e.target
+          .closest("[data-action]")
+          .getAttribute("data-action");
+        console.log("Action triggered:", action);
+        this.handleAction(action);
+      });
+    });
+
+    // Logout
+    const logoutBtn = document.getElementById("logout-btn");
+    if (logoutBtn) {
+      logoutBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        console.log("Logout initiated");
+        this.logout();
+      });
+    }
+
+    // User menu dropdown
+    const userMenu = document.querySelector(".user-menu");
+    if (userMenu) {
+      userMenu.addEventListener("click", (e) => {
+        e.stopPropagation();
+        userMenu.classList.toggle("active");
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest(".user-menu")) {
+          userMenu.classList.remove("active");
+        }
+      });
+    }
+
+    // Patient search
+    const searchInput = document.getElementById("patient-search");
+    if (searchInput) {
+      let searchTimeout;
+      searchInput.addEventListener("input", (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+          this.searchTerm = e.target.value.trim();
+          this.currentPage = 1;
+          this.loadPatients();
+        }, 300);
+      });
+    }
+
+    // Pagination
+    document.getElementById("prev-page")?.addEventListener("click", () => {
+      if (this.currentPage > 1) {
+        this.currentPage--;
+        this.updatePagination();
+        this.renderPatientsTable();
+      }
+    });
+
+    document.getElementById("next-page")?.addEventListener("click", () => {
+      const totalPages = Math.ceil(
+        (this.allPatients?.length || 0) / this.patientsPerPage
+      );
+      if (this.currentPage < totalPages) {
+        this.currentPage++;
+        this.updatePagination();
+        this.renderPatientsTable();
+      }
+    });
+
+    // Update check buttons
+    const checkUpdateBtns = document.querySelectorAll(
+      "#check-updates-btn, #dashboard-update-btn"
+    );
+    checkUpdateBtns.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        console.log("🔘 Update check button clicked");
+        this.checkForUpdates(true);
+      });
+    });
+
+    // Modal close buttons
+    document
+      .querySelectorAll(".modal-close, [data-action^='close-']")
+      .forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const action = e.target.getAttribute("data-action");
+          const modalId = action.replace("close-", "").replace("-modal", "");
+          this.closeModal(`${modalId}-modal`);
+        });
+      });
+
+    // Add User Modal
+    document.getElementById("save-new-user")?.addEventListener("click", () => {
+      this.saveNewUser();
+    });
+
+    // Edit User Modal
+    document
+      .getElementById("save-user-changes")
+      ?.addEventListener("click", () => {
+        this.saveUserChanges();
+      });
+
+    // Delete User
+    document
+      .getElementById("delete-user-btn")
+      ?.addEventListener("click", () => {
+        if (this.currentEditingUserId) {
+          this.showConfirmDeleteModal(this.currentEditingUserId);
+        }
+      });
+
+    // Confirm Delete
+    document
+      .getElementById("confirm-delete-btn")
+      ?.addEventListener("click", () => {
+        this.confirmDeleteUser();
+      });
+
+    // Cancel Delete
+    document
+      .querySelector("[data-action='cancel-delete']")
+      ?.addEventListener("click", () => {
+        this.closeModal("confirm-delete-modal");
+      });
+
+    // Toggle password change fields
+    document
+      .getElementById("toggle-password-change")
+      ?.addEventListener("click", () => {
+        this.togglePasswordChangeFields();
+      });
+
+    // Settings modal
+    const settingsModalBtn = document.querySelector("[data-view='settings']");
+    if (settingsModalBtn) {
+      settingsModalBtn.addEventListener("click", () => {
+        this.showSettingsModal();
+      });
+    }
+
+    // Update available modal close buttons
+    const updateAvailableModalClose = document.querySelector(
+      "[data-action='close-update-available-modal']"
+    );
+    if (updateAvailableModalClose) {
+      updateAvailableModalClose.addEventListener("click", () => {
+        this.closeModal("update-available-modal");
+      });
+    }
+
+    // Close modals when clicking outside
+    document.querySelectorAll(".modal-overlay").forEach((modal) => {
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) {
+          modal.classList.remove("active");
+        }
+      });
+    });
+  }
+
+  addUpdateStyles() {
+    if (!document.querySelector("#update-styles")) {
+      const style = document.createElement("style");
+      style.id = "update-styles";
+      style.textContent = `
+        .update-indicator {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+        }
+        
+        .update-badge {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          background: #ff4757;
+          color: white;
+          font-size: 10px;
+          font-weight: bold;
+          padding: 2px 6px;
+          border-radius: 10px;
+          min-width: 16px;
+          text-align: center;
+          display: none;
+          z-index: 1;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .update-badge.available {
+          display: inline-block;
+          animation: pulse 2s infinite;
+        }
+        
+        .update-info-card {
+          background: #f8f9fa;
+          border-radius: 8px;
+          padding: 20px;
+          margin-bottom: 20px;
+        }
+        
+        .update-header {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 20px;
+          margin-bottom: 20px;
+          padding-bottom: 15px;
+          border-bottom: 1px solid #e9ecef;
+        }
+        
+        .current-version, .new-version {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 5px;
+        }
+        
+        .current-version span:first-child,
+        .new-version span:first-child {
+          font-size: 12px;
+          color: #6c757d;
+        }
+        
+        .update-details {
+          margin: 15px 0;
+        }
+        
+        .update-details h4 {
+          margin-bottom: 10px;
+          color: #495057;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        
+        .release-notes {
+          background: white;
+          border: 1px solid #e9ecef;
+          border-radius: 6px;
+          padding: 15px;
+          max-height: 150px;
+          overflow-y: auto;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+        
+        .update-size-info {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 14px;
+          color: #6c757d;
+          padding: 10px 15px;
+          background: white;
+          border-radius: 6px;
+          border: 1px solid #e9ecef;
+        }
+        
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
+        }
+        
+        .btn.update-btn {
+          position: relative;
+          overflow: visible;
+        }
+        
+        .status-item.danger {
+          background-color: #f8d7da;
+          border-color: #f5c6cb;
+        }
+        
+        .status-item.danger i {
+          color: #dc3545;
+        }
+        
+        .fa-spin {
+          animation: fa-spin 1s infinite linear;
+        }
+        
+        @keyframes fa-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
+      console.log("🎨 Update styles added");
     }
   }
 
@@ -412,161 +1231,6 @@ class EndoStatApp {
     }
   }
 
-  setupEventListeners() {
-    console.log("Setting up event listeners...");
-
-    // Navigation
-    document.querySelectorAll("[data-view]").forEach((link) => {
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        const viewName = e.target
-          .closest("[data-view]")
-          .getAttribute("data-view");
-        console.log("Navigating to view:", viewName);
-        this.navigateToView(viewName);
-      });
-    });
-
-    // Quick Actions
-    document.querySelectorAll("[data-action]").forEach((button) => {
-      button.addEventListener("click", (e) => {
-        const action = e.target
-          .closest("[data-action]")
-          .getAttribute("data-action");
-        console.log("Action triggered:", action);
-        this.handleAction(action);
-      });
-    });
-
-    // Logout
-    const logoutBtn = document.getElementById("logout-btn");
-    if (logoutBtn) {
-      logoutBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        console.log("Logout initiated");
-        this.logout();
-      });
-    }
-
-    // User menu dropdown
-    const userMenu = document.querySelector(".user-menu");
-    if (userMenu) {
-      userMenu.addEventListener("click", (e) => {
-        e.stopPropagation();
-        userMenu.classList.toggle("active");
-      });
-
-      document.addEventListener("click", (e) => {
-        if (!e.target.closest(".user-menu")) {
-          userMenu.classList.remove("active");
-        }
-      });
-    }
-
-    // Patient search
-    const searchInput = document.getElementById("patient-search");
-    if (searchInput) {
-      let searchTimeout;
-      searchInput.addEventListener("input", (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-          this.searchTerm = e.target.value.trim();
-          this.currentPage = 1;
-          this.loadPatients();
-        }, 300);
-      });
-    }
-
-    // Pagination
-    document.getElementById("prev-page")?.addEventListener("click", () => {
-      if (this.currentPage > 1) {
-        this.currentPage--;
-        this.updatePagination();
-        this.renderPatientsTable();
-      }
-    });
-
-    document.getElementById("next-page")?.addEventListener("click", () => {
-      const totalPages = Math.ceil(
-        (this.allPatients?.length || 0) / this.patientsPerPage
-      );
-      if (this.currentPage < totalPages) {
-        this.currentPage++;
-        this.updatePagination();
-        this.renderPatientsTable();
-      }
-    });
-
-    // Update check buttons
-    const checkUpdateBtns = document.querySelectorAll(
-      "#check-updates-btn, #dashboard-update-btn"
-    );
-    checkUpdateBtns.forEach((btn) => {
-      btn.addEventListener("click", () => this.checkForUpdates());
-    });
-
-    // Modal close buttons
-    document
-      .querySelectorAll(".modal-close, [data-action^='close-']")
-      .forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          const action = e.target.getAttribute("data-action");
-          const modalId = action.replace("close-", "").replace("-modal", "");
-          this.closeModal(`${modalId}-modal`);
-        });
-      });
-
-    // Add User Modal
-    document.getElementById("save-new-user")?.addEventListener("click", () => {
-      this.saveNewUser();
-    });
-
-    // Edit User Modal
-    document
-      .getElementById("save-user-changes")
-      ?.addEventListener("click", () => {
-        this.saveUserChanges();
-      });
-
-    // Delete User
-    document
-      .getElementById("delete-user-btn")
-      ?.addEventListener("click", () => {
-        if (this.currentEditingUserId) {
-          this.showConfirmDeleteModal(this.currentEditingUserId);
-        }
-      });
-
-    // Confirm Delete
-    document
-      .getElementById("confirm-delete-btn")
-      ?.addEventListener("click", () => {
-        this.confirmDeleteUser();
-      });
-
-    // Cancel Delete
-    document
-      .querySelector("[data-action='cancel-delete']")
-      ?.addEventListener("click", () => {
-        this.closeModal("confirm-delete-modal");
-      });
-
-    // Toggle password change fields
-    document
-      .getElementById("toggle-password-change")
-      ?.addEventListener("click", () => {
-        this.togglePasswordChangeFields();
-      });
-
-    // Settings modal
-    const settingsModalBtn = document.querySelector("[data-view='settings']");
-    if (settingsModalBtn) {
-      settingsModalBtn.addEventListener("click", () => {
-        this.showSettingsModal();
-      });
-    }
-  }
-
   togglePasswordChangeFields() {
     const fields = document.getElementById("password-change-fields");
     const toggleBtn = document.getElementById("toggle-password-change");
@@ -581,88 +1245,6 @@ class EndoStatApp {
       document.getElementById("edit-password").value = "";
       document.getElementById("edit-confirm-password").value = "";
     }
-  }
-
-  setupUpdateListeners() {
-    // Listen for update events from main process
-    if (window.electronAPI && window.electronAPI.on) {
-      window.electronAPI.on("update-download-progress", (progress) => {
-        this.showUpdateProgress(progress);
-      });
-
-      window.electronAPI.on("update-downloaded", (info) => {
-        this.showUpdateReady(info);
-      });
-
-      window.electronAPI.on("update-notification", (data) => {
-        this.showNotification(data.message, "info");
-      });
-    }
-  }
-
-  async checkForUpdates() {
-    try {
-      this.showNotification("Checking for updates...", "info");
-      const result = await window.electronAPI.checkForUpdatesManually();
-
-      if (result.status === "update-available") {
-        this.showNotification(`Update ${result.version} available!`, "success");
-        // Auto-updater should automatically start download based on our configuration
-      } else if (result.status === "update-not-available") {
-        this.showNotification("You're using the latest version", "success");
-      } else {
-        this.showNotification(
-          `Update check failed: ${result.message}`,
-          "error"
-        );
-      }
-    } catch (error) {
-      console.error("Error checking for updates:", error);
-      this.showNotification("Failed to check for updates", "error");
-    }
-  }
-
-  showUpdateProgress(progress) {
-    const modal = document.getElementById("update-progress-modal");
-    const progressFill = document.getElementById("update-progress-fill");
-    const progressPercent = document.getElementById("update-progress-percent");
-    const progressSpeed = document.getElementById("update-progress-speed");
-    const downloaded = document.getElementById("update-downloaded");
-    const total = document.getElementById("update-total");
-    const timeRemaining = document.getElementById("update-time-remaining");
-
-    if (!modal) return;
-
-    // Show modal
-    modal.classList.add("active");
-
-    // Update progress
-    const percent = Math.round(progress.percent);
-    progressFill.style.width = `${percent}%`;
-    progressPercent.textContent = `${percent}%`;
-    progressSpeed.textContent =
-      this.formatBytes(progress.bytesPerSecond) + "/s";
-    downloaded.textContent = this.formatBytes(progress.transferred);
-    total.textContent = this.formatBytes(progress.total);
-
-    // Calculate time remaining
-    if (progress.bytesPerSecond > 0) {
-      const remainingBytes = progress.total - progress.transferred;
-      const secondsRemaining = remainingBytes / progress.bytesPerSecond;
-      const minutesRemaining = Math.ceil(secondsRemaining / 60);
-      timeRemaining.textContent = `${minutesRemaining} minute${
-        minutesRemaining !== 1 ? "s" : ""
-      }`;
-    }
-  }
-
-  showUpdateReady(info) {
-    this.closeModal("update-progress-modal");
-    this.showNotification(
-      `Update ${info.version} downloaded and ready to install!`,
-      "success",
-      5000
-    );
   }
 
   closeModal(modalId) {
@@ -713,7 +1295,7 @@ class EndoStatApp {
         this.showAddUserModal();
         break;
       case "check-updates":
-        this.checkForUpdates();
+        this.checkForUpdates(true);
         break;
       case "quick-stats":
         this.showQuickStats();
@@ -1058,6 +1640,11 @@ class EndoStatApp {
     }
   }
 
+  loadSettingsContent() {
+    // Load settings content if needed
+    console.log("Loading settings content...");
+  }
+
   // Utility methods
   calculateAge(dateOfBirth) {
     if (!dateOfBirth) return "N/A";
@@ -1243,9 +1830,15 @@ if (!document.querySelector("#notification-styles")) {
 // Initialize the application
 document.addEventListener("DOMContentLoaded", () => {
   console.log("DOM loaded, initializing EndoStatApp...");
+  console.log(
+    "Available electronAPI methods:",
+    Object.keys(window.electronAPI || {})
+  );
   window.app = new EndoStatApp();
 });
 
 window.addEventListener("error", (error) => {
   console.error("Global error:", error);
 });
+
+window.debug.testIPC();
