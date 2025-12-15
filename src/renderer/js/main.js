@@ -1807,6 +1807,70 @@ class EndoStatApp {
     };
     return colors[type] || "#3498db";
   }
+  // In the EndoStatApp class, add this method:
+  setupSettingsTabs() {
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    const tabPanes = document.querySelectorAll(".tab-pane");
+
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const tabName = button.getAttribute("data-tab");
+
+        // Remove active class from all tabs and panes
+        tabButtons.forEach((btn) => btn.classList.remove("active"));
+        tabPanes.forEach((pane) => pane.classList.remove("active"));
+
+        // Add active class to clicked tab and corresponding pane
+        button.classList.add("active");
+        const targetPane = document.getElementById(`${tabName}-tab`);
+        if (targetPane) {
+          targetPane.classList.add("active");
+        }
+
+        console.log(`Switched to ${tabName} tab`);
+      });
+    });
+  }
+
+  // Also add this to your showSettingsModal method:
+  showSettingsModal() {
+    console.log("Showing settings modal");
+    const modal = document.getElementById("settings-modal");
+    if (modal) {
+      modal.classList.add("active");
+      this.loadSettingsContent();
+
+      // Initialize tabs after modal is shown
+      setTimeout(() => {
+        this.setupSettingsTabs();
+      }, 100);
+    }
+  }
+
+  // Additionally, you need to ensure the first tab is active when modal opens
+  // Add this to your loadSettingsContent method or create a new method:
+  initializeSettingsModal() {
+    // Ensure first tab is active
+    const firstTab = document.querySelector('.tab-btn[data-tab="general"]');
+    const firstPane = document.getElementById("general-tab");
+
+    if (firstTab && firstPane) {
+      // Remove active from all
+      document
+        .querySelectorAll(".tab-btn")
+        .forEach((btn) => btn.classList.remove("active"));
+      document
+        .querySelectorAll(".tab-pane")
+        .forEach((pane) => pane.classList.remove("active"));
+
+      // Activate first
+      firstTab.classList.add("active");
+      firstPane.classList.add("active");
+    }
+  }
 }
 
 // Add CSS animations for notifications
